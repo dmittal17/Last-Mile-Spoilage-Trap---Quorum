@@ -1,842 +1,612 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quorum Dispatch | Last-Mile Spoilage Command Console</title>
-    <!-- Leaflet CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <style>
-        :root {
-            --bg-canvas: #090b10;
-            --bg-surface: #10141d;
-            --bg-surface-elevated: #161b26;
-            --bg-surface-hover: #1e2433;
-            --border-subtle: #202738;
-            --border-strong: #2d374d;
-            --text-primary: #f1f4fa;
-            --text-secondary: #8d98af;
-            --text-tertiary: #58637a;
-            
-            --accent-blue: #3b82f6;
-            --accent-blue-subtle: rgba(59, 130, 246, 0.12);
-            --accent-amber: #f59e0b;
-            --accent-amber-subtle: rgba(245, 158, 11, 0.12);
-            --accent-emerald: #10b981;
-            --accent-emerald-subtle: rgba(16, 185, 129, 0.12);
-            --accent-rose: #f43f5e;
-            --accent-rose-subtle: rgba(244, 63, 94, 0.12);
-            --accent-purple: #8b5cf6;
-            --accent-purple-subtle: rgba(139, 92, 246, 0.12);
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUORUM — Dispatch Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+/* ═══════════════════════════ DESIGN TOKENS ═══════════════════════════ */
+:root {
+  --bg: #0B1220;
+  --surface: #111A2E;
+  --surface2: #162036;
+  --border: #1F2A44;
+  --border2: #283550;
+  --cyan: #22D3EE;
+  --cyan-dim: rgba(34,211,238,.12);
+  --green: #34D399;
+  --green-dim: rgba(52,211,153,.12);
+  --amber: #FBBF24;
+  --amber-dim: rgba(251,191,36,.12);
+  --red: #F87171;
+  --red-dim: rgba(248,113,113,.10);
+  --slate: #94A3B8;
+  --text: #E2E8F0;
+  --text2: #94A3B8;
+  --text3: #64748B;
+  --pink: #F472B6;
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+}
 
-            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
-        }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: var(--font-sans);
-            background: var(--bg-canvas);
-            color: var(--text-primary);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
+/* ═══════════════════════════ SCROLLBAR ═══════════════════════════ */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
 
-        /* Top Header */
-        header {
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 0 20px;
-            height: 56px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
-            z-index: 100;
-        }
+/* ═══════════════════════════ TOP BAR ═══════════════════════════ */
+.topbar {
+  height: 56px; flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  z-index: 100;
+}
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.brand {
+  display: flex; align-items: center; gap: 10px;
+}
+.brand-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #22D3EE, #0891B2);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 16px rgba(34,211,238,.25);
+}
+.brand-icon svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.brand-name {
+  font-size: 15px; font-weight: 800; letter-spacing: 2.5px;
+  color: var(--text);
+}
+.conn-lost {
+  font-size: 11px; font-weight: 600; color: var(--red);
+  background: var(--red-dim); border: 1px solid rgba(248,113,113,.3);
+  padding: 3px 10px; border-radius: 6px;
+  display: none; align-items: center; gap: 5px;
+}
+.conn-lost.show { display: inline-flex; }
 
-        .header-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+.topbar-center { display: flex; align-items: center; gap: 16px; }
+.clock-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  padding: 5px 12px; border-radius: 8px;
+}
+.clock-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+.clock-value { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--cyan); min-width: 52px; text-align: right; }
 
-        .brand-icon {
-            width: 28px;
-            height: 28px;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
-        }
-        .brand-icon svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.buffer-chip {
+  font-family: var(--mono); font-size: 11px; color: var(--amber);
+  background: var(--amber-dim); border: 1px solid rgba(251,191,36,.2);
+  padding: 3px 8px; border-radius: 5px;
+}
+.help-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); font-family: var(--sans);
+  font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+  cursor: pointer; transition: .12s;
+}
+.help-btn:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+.help-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
-        .brand-text h1 {
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.6px;
-            text-transform: uppercase;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 4px 10px 4px 4px; border-radius: 8px; cursor: default;
+}
+.user-avatar {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--cyan), #0891B2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #0B1220;
+}
+.user-info { line-height: 1.2; }
+.user-name { font-size: 11px; font-weight: 600; color: var(--text); }
+.user-role { font-size: 9px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; }
+.logout-btn {
+  background: none; border: none; color: var(--text3); font-size: 10px;
+  cursor: pointer; padding: 2px 4px; transition: .12s;
+}
+.logout-btn:hover { color: var(--red); }
 
-        .live-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--accent-emerald);
-            background: var(--accent-emerald-subtle);
-            padding: 2px 7px;
-            border-radius: 999px;
-            border: 1px solid rgba(16, 185, 129, 0.25);
-            letter-spacing: 0.3px;
-        }
-        .live-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--accent-emerald);
-            box-shadow: 0 0 6px var(--accent-emerald);
-            animation: pulse-dot 2s infinite ease-in-out;
-        }
-        @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  color: var(--green); text-transform: uppercase;
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.8)} }
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+  .dash-line { animation: none !important; }
+}
 
-        /* Header Metric Pills */
-        .header-metrics {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .metric-pill {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .metric-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-tertiary);
-            font-weight: 600;
-        }
-        .metric-value {
-            font-family: var(--font-mono);
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
+/* ═══════════════════════════ MAIN GRID ═══════════════════════════ */
+.main-grid {
+  flex: 1; display: grid;
+  grid-template-columns: 60% 40%;
+  overflow: hidden;
+}
+@media (max-width: 900px) {
+  html, body { overflow: auto; height: auto; min-height: 100%; }
+  .main-grid { grid-template-columns: 1fr; display: flex; flex-direction: column; overflow: visible; }
+  .map-col { height: 420px; min-height: 420px; }
+  .right-col { height: auto; overflow: visible; }
+  .event-stream { max-height: 280px; min-height: 180px; }
+}
 
-        /* Clock Module */
-        .clock-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--bg-surface-elevated);
-            border: 1px solid var(--border-subtle);
-            padding: 4px 10px;
-            border-radius: 6px;
-        }
-        .clock-title {
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--text-tertiary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .clock-readout {
-            font-family: var(--font-mono);
-            font-size: 14px;
-            font-weight: 700;
-            color: #60a5fa;
-            min-width: 50px;
-            text-align: right;
-        }
+/* ═══════════════════════════ MAP ═══════════════════════════ */
+.map-col { position: relative; overflow: hidden; }
+#map { width: 100%; height: 100%; background: var(--bg); }
 
-        /* Action & Chaos Deck Ribbon */
-        .control-ribbon {
-            background: #0d1017;
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 8px 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            flex-shrink: 0;
-        }
+/* Dark Leaflet overrides */
+.leaflet-control-zoom a {
+  background: var(--surface) !important; color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--surface2) !important; }
 
-        .button-group-wrap {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
+/* Custom dark popup */
+.leaflet-popup-content-wrapper {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  color: var(--text) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
+  font-family: var(--sans) !important;
+  font-size: 12px !important;
+}
+.leaflet-popup-tip { background: var(--surface) !important; border: 1px solid var(--border) !important; }
+.leaflet-popup-close-button { color: var(--text2) !important; font-size: 16px !important; }
+.leaflet-popup-close-button:hover { color: var(--text) !important; }
 
-        .group-tag {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-            color: var(--text-tertiary);
-            margin-right: 2px;
-        }
+/* Map legend */
+.map-legend {
+  position: absolute; top: 12px; right: 12px; z-index: 800;
+  background: rgba(17,26,46,.92); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; font-size: 11px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+}
+.legend-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text3); margin-bottom: 6px; }
+.legend-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; color: var(--text2); font-size: 10px; }
+.legend-row:last-child { margin-bottom: 0; }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
-        .btn {
-            font-family: var(--font-sans);
-            font-size: 12px;
-            font-weight: 600;
-            padding: 6px 11px;
-            border-radius: 5px;
-            border: 1px solid var(--border-subtle);
-            background: var(--bg-surface-elevated);
-            color: var(--text-primary);
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.12s ease;
-            user-select: none;
-        }
-        .btn:hover {
-            background: var(--bg-surface-hover);
-            border-color: var(--border-strong);
-            color: #ffffff;
-        }
-        .btn:active {
-            transform: scale(0.98);
-        }
-        .btn svg { width: 14px; height: 14px; stroke-width: 2; fill: none; stroke: currentColor; }
+/* ═══════════════════ SHELTER MARKER ═══════════════════ */
+.sh-marker {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 50%; font-family: var(--mono); font-weight: 700;
+  border: 2.5px solid; line-height: 1.1;
+  box-shadow: 0 0 12px rgba(0,0,0,.5);
+  transition: transform .15s;
+}
+.sh-marker:hover { transform: scale(1.12); }
+.sh-open { background: rgba(5,150,105,.85); border-color: var(--green); color: #fff; }
+.sh-closed { background: rgba(220,38,38,.8); border-color: var(--red); color: #fff; }
+.sh-id { font-size: 8px; opacity: .8; }
+.sh-cap { font-size: 10px; }
 
-        .btn-primary {
-            background: #2563eb;
-            border-color: #3b82f6;
-            color: #ffffff;
-        }
-        .btn-primary:hover {
-            background: #1d4ed8;
-            border-color: #60a5fa;
-        }
+/* ═══════════════════ RIDER MARKER ═══════════════════ */
+.rider-marker {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; font-family: var(--mono);
+  border: 2.5px solid;
+  box-shadow: 0 0 10px rgba(0,0,0,.6);
+  transition: transform .15s, box-shadow .3s;
+  color: #fff;
+  position: relative;
+}
+.rider-marker .r-label {
+  position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  white-space: nowrap; color: var(--text);
+  text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+.rider-online { background: rgba(8,145,178,.7); border-color: var(--cyan); }
+.rider-offline { background: rgba(71,85,105,.7); border-color: var(--slate); }
+.rider-stranded { background: rgba(220,38,38,.7); border-color: var(--red); box-shadow: 0 0 14px rgba(248,113,113,.4); }
+.rider-flash { animation: riderFlash .5s ease-out; }
+@keyframes riderFlash { 0%{box-shadow:0 0 24px var(--red)} 100%{box-shadow:0 0 10px rgba(0,0,0,.6)} }
 
-        .btn-warning {
-            background: rgba(245, 158, 11, 0.08);
-            border-color: rgba(245, 158, 11, 0.35);
-            color: #fbbf24;
-        }
-        .btn-warning:hover {
-            background: rgba(245, 158, 11, 0.18);
-            border-color: #f59e0b;
-            color: #fef3c7;
-        }
+/* ═══════════════════ DONOR MARKER ═══════════════════ */
+.donor-marker {
+  background: rgba(194,65,12,.85); border: 2px solid #FB923C;
+  color: #fff; padding: 2px 7px; border-radius: 6px;
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  box-shadow: 0 2px 10px rgba(194,65,12,.4);
+  white-space: nowrap;
+}
 
-        .btn-danger {
-            background: rgba(244, 63, 94, 0.08);
-            border-color: rgba(244, 63, 94, 0.35);
-            color: #fb7185;
-        }
-        .btn-danger:hover {
-            background: rgba(244, 63, 94, 0.18);
-            border-color: #f43f5e;
-            color: #ffe4e6;
-        }
+/* ═══════════════════════════ RIGHT COLUMN ═══════════════════════════ */
+.right-col {
+  display: flex; flex-direction: column;
+  height: 100%; overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
 
-        .btn-purple {
-            background: rgba(139, 92, 246, 0.08);
-            border-color: rgba(139, 92, 246, 0.35);
-            color: #c4b5fd;
-        }
-        .btn-purple:hover {
-            background: rgba(139, 92, 246, 0.18);
-            border-color: #8b5cf6;
-            color: #ede9fe;
-        }
+/* --- Panel --- */
+.panel { border-bottom: 1px solid var(--border); }
+.panel-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.panel-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--text2);
+  display: flex; align-items: center; gap: 6px;
+}
+.panel-badge {
+  font-family: var(--mono); font-size: 10px; color: var(--text3);
+  background: rgba(255,255,255,.04); padding: 2px 7px; border-radius: 4px;
+}
+.panel-body { padding: 12px 16px; }
 
-        .btn-ghost {
-            background: transparent;
-            border-color: transparent;
-            color: var(--text-secondary);
-        }
-        .btn-ghost:hover {
-            background: var(--bg-surface-elevated);
-            border-color: var(--border-subtle);
-            color: var(--text-primary);
-        }
+/* ═══════════════════ CHAOS PANEL ═══════════════════ */
+.chaos-grid {
+  display: grid; gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+.chaos-grid .full { grid-column: span 2; }
 
-        /* Workspace Grid */
-        .workspace-grid {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1fr 420px;
-            overflow: hidden;
-        }
+.cbtn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: .12s;
+  user-select: none;
+}
+.cbtn:hover { background: var(--surface2); border-color: var(--border2); }
+.cbtn:active { transform: scale(.97); }
+.cbtn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.cbtn .icon { font-size: 16px; flex-shrink: 0; }
 
-        .map-column {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-            border-right: 1px solid var(--border-subtle);
-        }
+.cbtn-cyan { border-color: rgba(34,211,238,.3); background: var(--cyan-dim); color: var(--cyan); }
+.cbtn-cyan:hover { background: rgba(34,211,238,.2); border-color: rgba(34,211,238,.5); box-shadow: 0 0 16px rgba(34,211,238,.12); }
 
-        #map {
-            flex: 1;
-            width: 100%;
-            background: #080a0f;
-        }
+.cbtn-amber { border-color: rgba(251,191,36,.3); color: var(--amber); }
+.cbtn-amber:hover { background: var(--amber-dim); border-color: rgba(251,191,36,.5); }
 
-        /* Dark-mode filter for standard OSM tiles */
-        .leaflet-tile-pane {
-            filter: brightness(0.65) invert(1) contrast(2.6) hue-rotate(200deg) saturate(0.25) brightness(0.85);
-        }
+.cbtn-red { border-color: rgba(248,113,113,.3); color: var(--red); }
+.cbtn-red:hover { background: var(--red-dim); border-color: rgba(248,113,113,.5); }
 
-        /* Map Legend Overlay */
-        .map-legend {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            background: rgba(16, 20, 29, 0.92);
-            backdrop-filter: blur(8px);
-            border: 1px solid var(--border-subtle);
-            border-radius: 6px;
-            padding: 8px 12px;
-            z-index: 1000;
-            font-size: 11px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-        }
-        .legend-header {
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--text-tertiary);
-            margin-bottom: 6px;
-        }
-        .legend-row {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            margin-bottom: 4px;
-            color: var(--text-secondary);
-        }
-        .legend-row:last-child { margin-bottom: 0; }
-        .legend-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 2px;
-        }
+.cbtn-purple { border-color: rgba(139,92,246,.3); color: #C4B5FD; }
+.cbtn-purple:hover { background: rgba(139,92,246,.1); border-color: rgba(139,92,246,.5); }
 
-        /* Bottom Operational Drawer */
-        .operational-drawer {
-            height: 230px;
-            background: var(--bg-surface);
-            border-top: 1px solid var(--border-subtle);
-            display: grid;
-            grid-template-columns: 340px 1fr;
-            flex-shrink: 0;
-            overflow: hidden;
-        }
+.cbtn-default:hover { background: var(--surface2); }
 
-        .drawer-section {
-            padding: 10px 16px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            border-right: 1px solid var(--border-subtle);
-        }
-        .drawer-section:last-child { border-right: none; }
+.cbtn-sm {
+  padding: 6px 10px; font-size: 11px;
+}
 
-        .section-header-compact {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            flex-shrink: 0;
-        }
-        .section-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .section-count {
-            font-family: var(--font-mono);
-            font-size: 10px;
-            color: var(--text-tertiary);
-            background: var(--bg-surface-elevated);
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
+/* Fleet heartbeat row */
+.fleet-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.15);
+}
+.fleet-node {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  cursor: pointer; transition: .12s; user-select: none;
+  color: var(--text2);
+}
+.fleet-node:hover { border-color: var(--border2); background: var(--surface2); }
+.fleet-node .fdot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); flex-shrink: 0;
+}
+.fleet-node.silent { border-color: rgba(248,113,113,.35); background: var(--red-dim); }
+.fleet-node.silent .fdot { background: var(--red); box-shadow: 0 0 6px var(--red); }
 
-        /* Batch Cards */
-        .batch-scroll {
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding-right: 4px;
-        }
-        .batch-card {
-            background: var(--bg-surface-elevated);
-            border: 1px solid var(--border-subtle);
-            border-radius: 5px;
-            padding: 8px 10px;
-            transition: border-color 0.15s ease;
-        }
-        .batch-card:hover { border-color: var(--border-strong); }
-        .batch-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-        .batch-id {
-            font-family: var(--font-mono);
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-        .badge-cat {
-            font-size: 9px;
-            font-weight: 700;
-            text-transform: uppercase;
-            padding: 2px 5px;
-            border-radius: 3px;
-            background: var(--accent-blue-subtle);
-            color: #93c5fd;
-            border: 1px solid rgba(59, 130, 246, 0.25);
-        }
-        .batch-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            color: var(--text-secondary);
-            font-family: var(--font-mono);
-            margin-bottom: 5px;
-        }
-        .progress-bar-bg {
-            background: rgba(255, 255, 255, 0.06);
-            height: 4px;
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            border-radius: 2px;
-            transition: width 0.3s ease, background-color 0.3s ease;
-        }
+/* ═══════════════════ EVENT STREAM ═══════════════════ */
+.event-stream {
+  flex: 1; overflow-y: auto;
+  padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg);
+}
+.ev-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px; line-height: 1.4;
+  background: var(--surface);
+  border-left: 3px solid var(--border);
+}
+.ev-time { font-family: var(--mono); font-size: 10px; color: var(--text3); white-space: nowrap; flex-shrink: 0; margin-top: 1px; }
+.ev-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 5px; border-radius: 3px;
+  white-space: nowrap; flex-shrink: 0;
+  letter-spacing: .3px;
+}
+.ev-msg { color: var(--text2); font-family: var(--mono); font-size: 10px; word-break: break-all; }
+/* Badge colors by kind */
+.ev-BATCH        { background: var(--cyan-dim); color: var(--cyan); }
+.ev-ASSIGNED     { background: var(--cyan-dim); color: var(--cyan); }
+.ev-PICKED_UP    { background: var(--cyan-dim); color: var(--cyan); }
+.ev-DELIVERED    { background: var(--green-dim); color: var(--green); }
+.ev-UNPLACED     { background: var(--amber-dim); color: var(--amber); }
+.ev-RELEASED     { background: rgba(148,163,184,.12); color: var(--slate); }
+.ev-REROUTED     { background: var(--cyan-dim); color: var(--cyan); }
+.ev-row.ev-alert { background: var(--red-dim); border-left-color: var(--red); }
+.ev-ALERT_STRANDED, .ev-ALERT_UNSAFE { background: var(--red-dim); color: var(--red); }
+.ev-ALERT_RIDER_SILENT { background: var(--amber-dim); color: var(--amber); }
+.ev-SHELTER_CLOSED { background: var(--red-dim); color: var(--red); }
+.ev-DIRECT_DONATION { background: var(--green-dim); color: var(--green); }
 
-        /* Leases Table */
-        .table-scroll {
-            overflow-y: auto;
-            flex: 1;
-        }
-        table.enterprise-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }
-        table.enterprise-table th {
-            text-align: left;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-tertiary);
-            font-weight: 600;
-            padding: 6px 8px;
-            border-bottom: 1px solid var(--border-subtle);
-            position: sticky;
-            top: 0;
-            background: var(--bg-surface);
-            z-index: 2;
-        }
-        table.enterprise-table td {
-            padding: 6px 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            font-family: var(--font-mono);
-            color: var(--text-secondary);
-        }
-        table.enterprise-table tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text-primary);
-        }
+/* ═══════════════════ LEASE TABLE ═══════════════════ */
+.lease-scroll { overflow-y: auto; max-height: 220px; }
+table.lt { width: 100%; border-collapse: collapse; font-size: 11px; }
+table.lt th {
+  text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text3); font-weight: 600; padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface); z-index: 2;
+}
+table.lt td {
+  padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.02);
+  font-family: var(--mono); font-size: 10px; color: var(--text2);
+}
+table.lt tr:hover td { background: rgba(255,255,255,.02); color: var(--text); }
 
-        /* Status Chips */
-        .chip {
-            display: inline-block;
-            font-family: var(--font-sans);
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 6px;
-            border-radius: 3px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .chip-RESERVED { background: var(--accent-amber-subtle); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .chip-PICKED_UP { background: var(--accent-blue-subtle); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-        .chip-DELIVERED { background: var(--accent-emerald-subtle); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .chip-RELEASED { background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); }
-        .chip-STRANDED, .chip-UNSAFE { background: var(--accent-rose-subtle); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+.chip {
+  display: inline-block; font-size: 9px; font-weight: 700;
+  padding: 2px 6px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.chip-RESERVED  { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,.25); }
+.chip-PICKED_UP { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(34,211,238,.25); }
+.chip-DELIVERED { background: var(--green-dim); color: var(--green); border: 1px solid rgba(52,211,153,.25); }
+.chip-RELEASED  { background: rgba(255,255,255,.04); color: var(--slate); border: 1px solid rgba(255,255,255,.08); }
+.chip-STRANDED, .chip-UNSAFE { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
 
-        .btn-table {
-            font-family: var(--font-sans);
-            font-size: 10px;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 3px;
-            border: 1px solid transparent;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: all 0.1s ease;
-        }
-        .btn-table-pickup {
-            background: var(--accent-blue-subtle);
-            border-color: rgba(59, 130, 246, 0.35);
-            color: #93c5fd;
-        }
-        .btn-table-pickup:hover { background: #2563eb; color: #fff; }
-        .btn-table-deliver {
-            background: var(--accent-emerald-subtle);
-            border-color: rgba(16, 185, 129, 0.35);
-            color: #6ee7b7;
-        }
-        .btn-table-deliver:hover { background: #059669; color: #fff; }
+.countdown { font-family: var(--mono); font-weight: 600; }
+.countdown-ok { color: var(--text2); }
+.countdown-warn { color: var(--amber); }
+.countdown-crit { color: var(--red); animation: critPulse 1s ease-in-out infinite; }
+@keyframes critPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 
-        /* Right Telemetry Column */
-        .sidebar-column {
-            background: var(--bg-surface);
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow: hidden;
-        }
+.act-btn {
+  font-size: 9px; font-weight: 700; padding: 3px 8px;
+  border-radius: 4px; border: 1px solid transparent;
+  cursor: pointer; text-transform: uppercase; transition: .1s;
+  font-family: var(--sans);
+}
+.act-pickup { background: var(--cyan-dim); border-color: rgba(34,211,238,.3); color: var(--cyan); }
+.act-pickup:hover { background: #0891B2; color: #fff; }
+.act-deliver { background: var(--green-dim); border-color: rgba(52,211,153,.3); color: var(--green); }
+.act-deliver:hover { background: #059669; color: #fff; }
 
-        /* Fleet Heartbeat Matrix */
-        .fleet-matrix-panel {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-subtle);
-            flex-shrink: 0;
-            background: #0f121a;
-        }
-        .matrix-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .matrix-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--text-secondary);
-        }
-        .matrix-hint {
-            font-size: 10px;
-            color: var(--text-tertiary);
-        }
+/* ═══════════════════ TOAST ═══════════════════ */
+.toast-area {
+  position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  background: rgba(220,38,38,.92); backdrop-filter: blur(8px);
+  color: #FEE2E2; font-size: 13px; font-weight: 600;
+  padding: 12px 40px 12px 16px; border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(220,38,38,.3);
+  position: relative;
+  animation: toastIn .3s ease-out;
+}
+.toast .toast-close {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; color: #FEE2E2; font-size: 18px;
+  cursor: pointer; opacity: .7; transition: .1s;
+}
+.toast .toast-close:hover { opacity: 1; }
+@keyframes toastIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
 
-        .matrix-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 6px;
-        }
-        .rider-node {
-            background: var(--bg-surface-elevated);
-            border: 1px solid var(--border-subtle);
-            border-radius: 4px;
-            padding: 6px 8px;
-            cursor: pointer;
-            transition: all 0.12s ease;
-            user-select: none;
-        }
-        .rider-node:hover {
-            border-color: var(--border-strong);
-            background: var(--bg-surface-hover);
-        }
-        .rider-node.silent {
-            border-color: rgba(244, 63, 94, 0.4);
-            background: var(--accent-rose-subtle);
-        }
-        .rider-node-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .node-id {
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-        .node-signal {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--accent-emerald);
-        }
-        .rider-node.silent .node-signal {
-            background: var(--accent-rose);
-            box-shadow: 0 0 6px var(--accent-rose);
-        }
-        .node-status {
-            font-size: 9px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-tertiary);
-            margin-top: 2px;
-        }
-        .rider-node.silent .node-status {
-            color: #fb7185;
-        }
+/* ═══════════════════ HELP MODAL ═══════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(11,18,32,.8); backdrop-filter: blur(4px);
+  display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; width: 90%; max-width: 560px;
+  box-shadow: 0 16px 64px rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 15px; font-weight: 700; }
+.modal-close {
+  background: none; border: none; color: var(--text2); font-size: 20px;
+  cursor: pointer; padding: 4px; transition: .1s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 16px 20px; max-height: 60vh; overflow-y: auto; }
+.scenario { margin-bottom: 14px; }
+.scenario:last-child { margin-bottom: 0; }
+.scenario .s-num {
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  color: var(--cyan); margin-right: 6px;
+}
+.scenario .s-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.scenario .s-btn {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  background: var(--cyan-dim); color: var(--cyan);
+  padding: 2px 8px; border-radius: 4px; margin-left: 6px;
+  border: 1px solid rgba(34,211,238,.2);
+}
+.scenario .s-desc { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.5; }
 
-        /* Event Stream */
-        .log-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background: var(--bg-canvas);
-        }
-        .log-header {
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--border-subtle);
-            background: var(--bg-surface);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-shrink: 0;
-        }
-        .log-title {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--text-secondary);
-        }
-        .log-filter-chips {
-            display: flex;
-            gap: 4px;
-        }
-        .filter-chip {
-            font-size: 10px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 3px;
-            cursor: pointer;
-            background: var(--bg-surface-elevated);
-            color: var(--text-tertiary);
-            border: 1px solid transparent;
-        }
-        .filter-chip.active {
-            background: var(--accent-blue-subtle);
-            color: #93c5fd;
-            border-color: rgba(59, 130, 246, 0.3);
-        }
+/* ═══════════════════ LEASE POLYLINE ANIMATION ═══════════════════ */
+.dash-line {
+  stroke-dasharray: 8 10;
+  animation: dashAnim .8s linear infinite;
+}
+@keyframes dashAnim { to { stroke-dashoffset: -18; } }
 
-        .log-feed {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .feed-entry {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-subtle);
-            border-left: 3px solid var(--accent-blue);
-            border-radius: 4px;
-            padding: 6px 10px;
-            font-size: 11px;
-            line-height: 1.4;
-        }
-        .feed-entry.alert {
-            background: rgba(244, 63, 94, 0.06);
-            border-color: rgba(244, 63, 94, 0.35);
-            border-left: 3px solid var(--accent-rose);
-        }
-        .feed-top {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-bottom: 2px;
-        }
-        .feed-time {
-            font-family: var(--font-mono);
-            font-size: 10px;
-            color: var(--text-tertiary);
-        }
-        .feed-type {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #93c5fd;
-            letter-spacing: 0.4px;
-        }
-        .feed-entry.alert .feed-type {
-            color: #fb7185;
-        }
-        .feed-payload {
-            font-family: var(--font-mono);
-            font-size: 10px;
-            color: var(--text-secondary);
-            word-break: break-all;
-        }
-
-        /* Custom Leaflet Map Markers */
-        .shelter-node {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 800;
-            border: 2px solid #ffffff;
-            box-shadow: 0 0 14px rgba(0,0,0,0.7);
-            line-height: 1.05;
-            transition: transform 0.2s ease;
-        }
-        .shelter-node:hover { transform: scale(1.1); }
-        .shelter-node.open {
-            background: #059669;
-            border-color: #34d399;
-            color: #ffffff;
-        }
-        .shelter-node.closed {
-            background: #e11d48;
-            border-color: #fda4af;
-            color: #ffffff;
-        }
-
-        .rider-node-marker {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 6px;
-            border-radius: 4px;
-            font-family: var(--font-mono);
-            font-size: 11px;
-            font-weight: 700;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.6);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            white-space: nowrap;
-        }
-        .rider-node-marker.online {
-            background: #1e40af;
-            border-color: #60a5fa;
-            color: #ffffff;
-        }
-        .rider-node-marker.offline {
-            background: #334155;
-            border-color: #64748b;
-            color: #cbd5e1;
-        }
-
-        .donor-node-marker {
-            background: #c2410c;
-            border: 1px solid #fb923c;
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: var(--font-mono);
-            font-size: 10px;
-            font-weight: 700;
-            box-shadow: 0 2px 8px rgba(194, 65, 12, 0.5);
-        }
-    </style>
+/* empty state */
+.empty-state { color: var(--text3); font-size: 11px; text-align: center; padding: 20px 0; }
+</style>
 </head>
 <body>
-    <!-- Top Global Header -->
-    <header>
-        <div class="header-brand">
-            <div class="brand-icon">
-                <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-            </div>
-            <div class="brand-text">
-                <h1>Quorum Dispatch <span class="live-indicator"><span class="live-dot"></span> PUNE MATRIX</span></h1>
-            </div>
-        </div>
 
-        <div class="header-metrics">
-            <div class="metric-pill">
-                <span class="metric-label">Active Fleet</span>
-                <span class="metric-value" id="metric-fleet">-</span>
-            </div>
-            <div class="metric-pill">
-                <span class="metric-label">Shelters Open</span>
-                <span class="metric-value" id="metric-shelters">-</span>
-            </div>
-            <div class="metric-pill">
-                <span class="metric-label">Active Leases</span>
-                <span class="metric-value" id="metric-leases">-</span>
-            </div>
-            <div class="metric-pill">
-                <span class="metric-label">Spoilage Rate</span>
-                <span class="metric-value" style="color: var(--accent-emerald);">0.0%</span>
-            </div>
-        </div>
+<!-- ═══════════════════════════ TOP BAR ═══════════════════════════ -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+      </div>
+      <span class="brand-name">QUORUM</span>
+    </div>
+    <span class="conn-lost" id="conn-lost">⚠ Connection lost</span>
+  </div>
 
-        <div class="clock-container">
-            <span class="clock-title">Engine Clock</span>
-            <span class="clock-readout" id="clock-display">0.0m</span>
-        </div>
-    </header>
+  <div class="topbar-center">
+    <div class="clock-chip">
+      <span class="clock-label">Sim Clock</span>
+      <span class="clock-value" id="clock-display">0.0m</span>
+    </div>
+  </div>
 
-    <!-- Operational Command Deck Ribbon -->
-    <div class="control-ribbon">
-        <div class="button-group-wrap">
-            <span class="group-tag">Ingestion</span>
-            <button class="btn btn-primary" onclick="loadDemo()" title="Bootstrap baseline 180-meal test topology with 7 riders and 3 shelters">
-                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                Load Influx (180 Meals)
-            </button>
-            <button class="btn btn-warning" onclick="addTightBatch()" title="Inject batch with 12-min expiry where transit exceeds safety limits">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                Inject Tight Expiry (12m)
-            </button>
-        </div>
+  <div class="topbar-right">
+    <span class="buffer-chip" id="buffer-chip" title="Safety buffer before spoilage">🛡 Buffer: 10m</span>
+    <button class="help-btn" id="help-btn" title="How to demo">? Demo Guide</button>
+    <div class="user-chip" id="user-chip">
+      <div class="user-avatar" id="user-avatar">J</div>
+      <div class="user-info">
+        <div class="user-name" id="user-name">Judge</div>
+        <div class="user-role" id="user-role">Coordinator</div>
+      </div>
+      <button class="logout-btn" id="logout-btn" title="Sign out">✕</button>
+    </div>
+    <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+  </div>
+</div>
 
-        <div class="button-group-wrap">
-            <span class="group-tag">Adversarial Scenarios</span>
-            <button class="btn btn-purple" onclick="triggerGhost()" title="Simulate rider silence for 6m to verify automatic lease revocation">
-                <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
-                Sever Heartbeat (Ghost)
-            </button>
-            <button class="btn" onclick="directDonation()" title="Simulate uncoordinated citizen drop-off filling destination shelter">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                Direct Donation (Fill)
-            </button>
-            <button class="btn btn-danger" onclick="closeShelter()" title="Force immediate emergency closure of primary destination shelter">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-                Close Shelter
-            </button>
-        </div>
+<!-- ═══════════════════════════ TOAST AREA ═══════════════════════════ -->
+<div class="toast-area" id="toast-area"></div>
 
-        <div class="button-group-wrap">
-            <span class="group-tag">Timeline</span>
-            <button class="btn" onclick="advanceClock(5)" title="Step forward simulation by 5 minutes">
-                <svg viewBox="0 0 24 24"><polygon points="13 19 22 12 13 5 13 19"></polygon><polygon points="2 19 11 12 2 5 2 19"></polygon></svg>
-                +5 Min Fast-Forward
-            </button>
-            <button class="btn btn-ghost" onclick="resetEngine()" title="Wipe volatile engine state and SQLite records">
-                <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
-                Reset
-            </button>
+<!-- ═══════════════════════════ HELP MODAL ═══════════════════════════ -->
+<div class="modal-overlay" id="help-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>🎯 Demo Scenarios — Judge Guide</h2>
+      <button class="modal-close" id="help-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="scenario">
+        <span class="s-num">01</span>
+        <span class="s-title">Split 180 meals across riders and shelters</span>
+        <span class="s-btn">🚀 Load Demo</span>
+        <div class="s-desc">Creates 7 riders, 3 shelters near Pune, dispatches 180 cooked meals (75 min shelf life). Watch the engine split the batch across riders and shelters without overfilling any.</div>
+      </div>
+      <div class="scenario">
+        <span class="s-num">02</span>
+        <span class="s-title">Tight expiry batch is refused</span>
+        <span class="s-btn">⏱️ Tight Batch</span>
+        <div class="s-desc">Injects a 40-meal batch with 12 min shelf life. All shelters are too far for safe delivery — the engine emits UNPLACED rather than risk spoilage.</div>
+      </div>
+      <div class="scenario">
+        <span class="s-num">03</span>
+        <span class="s-title">Ghost rider auto-released</span>
+        <span class="s-btn">👻 Ghost Rider</span>
+        <div class="s-desc">Advances time 6 min without sending heartbeats for one rider. The engine detects the ghost, releases their lease, and reassigns the cargo to another rider.</div>
+      </div>
+      <div class="scenario">
+        <span class="s-num">04</span>
+        <span class="s-title">Direct donation fills shelter mid-transit</span>
+        <span class="s-btn">📦 Direct Donation</span>
+        <div class="s-desc">First pickup a lease, then click Direct Donation to fill the destination shelter. Watch the engine reroute the in-transit rider to a fallback shelter.</div>
+      </div>
+      <div class="scenario">
+        <span class="s-num">05</span>
+        <span class="s-title">Shelter closes while in transit</span>
+        <span class="s-btn">🚫 Close Shelter</span>
+        <div class="s-desc">With an in-transit rider, close their destination shelter. The engine reroutes or splits the load across fallback shelters. If none exist, STRANDED is emitted.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ MAIN GRID ═══════════════════════════ -->
+<div class="main-grid">
+
+  <!-- LEFT: MAP -->
+  <div class="map-col">
+    <div id="map"></div>
+    <div class="map-legend">
+      <div class="legend-title">Nodes</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--green);border-radius:50%"></div> Open Shelter</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--red);border-radius:50%"></div> Closed Shelter</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--cyan);border-radius:50%"></div> Rider (active)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--slate);border-radius:50%"></div> Rider (silent)</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#FB923C"></div> Donor Depot</div>
+      <div class="legend-title" style="margin-top:8px">Transit</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--amber)"></div> Reserved</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--cyan)"></div> In Transit</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--green)"></div> Delivered</div>
+      <div class="legend-row"><div class="legend-dot" style="background:var(--red)"></div> Stranded / Danger</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: PANELS -->
+  <div class="right-col">
+
+    <!-- CHAOS PANEL -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">⚡ Chaos Panel</span>
+        <span class="panel-badge" id="metric-summary">0 riders · 0 shelters · 0 leases</span>
+      </div>
+      <div class="panel-body">
+        <div class="chaos-grid">
+          <button class="cbtn cbtn-cyan full" onclick="loadDemo()"><span class="icon">🚀</span> Load Demo (180 meals)</button>
+          <button class="cbtn cbtn-amber" onclick="addTightBatch()"><span class="icon">⏱️</span> Tight Batch (12m)</button>
+          <button class="cbtn cbtn-purple" onclick="triggerGhost()"><span class="icon">👻</span> Ghost Rider</button>
+          <button class="cbtn cbtn-default" onclick="directDonation()"><span class="icon">📦</span> Direct Donation</button>
+          <button class="cbtn cbtn-red" onclick="closeShelter()"><span class="icon">🚫</span> Close Shelter</button>
+          <button class="cbtn cbtn-default cbtn-sm" onclick="advanceClock(5)"><span class="icon">⏩</span> +5 Min</button>
+          <button class="cbtn cbtn-red cbtn-sm" onclick="resetEngine()"><span class="icon">↺</span> Reset</button>
         </div>
       </div>
       <!-- Fleet heartbeat row -->
@@ -845,97 +615,15 @@
       </div>
     </div>
 
-    <!-- Main Operational Workspace -->
-    <div class="workspace-grid">
-        <!-- Left: Cartographic View & Bottom Operational Drawer -->
-        <div class="map-column">
-            <div id="map"></div>
-
-            <!-- Sleek Minimal Map Legend -->
-            <div class="map-legend">
-                <div class="legend-header">Transit Status</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#f59e0b;"></div> Reserved</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#3b82f6;"></div> In Transit (Picked Up)</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#10b981;"></div> Delivered</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#f43f5e;"></div> Stranded / Danger</div>
-                <div class="legend-header" style="margin-top: 6px;">Nodes</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#059669; border-radius:50%;"></div> Open Shelter</div>
-                <div class="legend-row"><div class="legend-indicator" style="background:#e11d48; border-radius:50%;"></div> Closed Shelter</div>
-            </div>
-
-            <!-- Bottom Drawer: Expiry Monitor & Active Leases Grid -->
-            <div class="operational-drawer">
-                <!-- Batch Shelf-Life Monitor -->
-                <div class="drawer-section">
-                    <div class="section-header-compact">
-                        <span class="section-title">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                            Batch Expiry Monitor
-                        </span>
-                        <span class="section-count" id="batch-stats">0 Batches</span>
-                    </div>
-                    <div class="batch-scroll" id="batches-list">
-                        <div style="color:var(--text-tertiary); font-size:11px; padding: 12px 0;">No active surplus batches recorded.</div>
-                    </div>
-                </div>
-
-                <!-- Active Leases Dispatch Table -->
-                <div class="drawer-section">
-                    <div class="section-header-compact">
-                        <span class="section-title">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                            Active Cargo Leases & Transitions
-                        </span>
-                        <span class="section-count" id="lease-stats">0 Leases</span>
-                    </div>
-                    <div class="table-scroll">
-                        <table class="enterprise-table">
-                            <thead>
-                                <tr>
-                                    <th>Lease ID</th>
-                                    <th>Transit Path</th>
-                                    <th>Cargo</th>
-                                    <th>Deadline</th>
-                                    <th>State</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="leases-table-body">
-                                <tr><td colspan="6" style="color:var(--text-tertiary); text-align:center; padding: 20px 0;">No active dispatch contracts</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right: Fleet Telemetry & Live Event Log -->
-        <div class="sidebar-column">
-            <!-- Rider Heartbeat Matrix -->
-            <div class="fleet-matrix-panel">
-                <div class="matrix-header">
-                    <span class="matrix-title">Fleet Signal Matrix</span>
-                    <span class="matrix-hint">Click rider to kill/resume signal</span>
-                </div>
-                <div class="matrix-grid" id="hb-pills-container">
-                    <span style="color:var(--text-tertiary); font-size:11px; grid-column: span 4;">Fleet awaiting deployment.</span>
-                </div>
-            </div>
-
-            <!-- Activity Event Stream -->
-            <div class="log-panel">
-                <div class="log-header">
-                    <span class="log-title">System Event Telemetry</span>
-                    <div class="log-filter-chips">
-                        <span class="filter-chip active" id="filter-all" onclick="setLogFilter('all')">All</span>
-                        <span class="filter-chip" id="filter-alerts" onclick="setLogFilter('alerts')">Alerts</span>
-                    </div>
-                </div>
-                <div class="log-feed" id="log-stream">
-                    <div style="color:var(--text-tertiary); font-size:11px; text-align:center; margin-top:20px;">Telemetry pipeline ready.</div>
-                </div>
-            </div>
-        </div>
+    <!-- EVENT STREAM -->
+    <div class="panel" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="panel-head">
+        <span class="panel-title">📡 Live Event Stream</span>
+        <span class="panel-badge" id="log-count">0 events</span>
+      </div>
+      <div class="event-stream" id="log-stream">
+        <div class="empty-state">Telemetry pipeline ready</div>
+      </div>
     </div>
 
     <!-- ACTIVE LEASES / EXPIRY -->
@@ -985,62 +673,265 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   window.location.href = '/';
 });
 
-        // State trackers
-        const initialShelfLife = {};
-        const riderHeartbeats = {};
-        let lastKnownStatus = null;
-        let currentLogFilter = 'all';
+// ═══════════════════════════ HELP MODAL ═══════════════════════════
+document.getElementById('help-btn').addEventListener('click', () => document.getElementById('help-modal').classList.add('show'));
+document.getElementById('help-close').addEventListener('click', () => document.getElementById('help-modal').classList.remove('show'));
+document.getElementById('help-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) document.getElementById('help-modal').classList.remove('show');
+});
+if (urlParams.get('help') === '1' || window.location.hash === '#demo') {
+  document.getElementById('help-modal').classList.add('show');
+}
 
-        function setLogFilter(filter) {
-            currentLogFilter = filter;
-            document.getElementById('filter-all').classList.toggle('active', filter === 'all');
-            document.getElementById('filter-alerts').classList.toggle('active', filter === 'alerts');
-            if (lastKnownStatus) renderLogs(lastKnownStatus.log || []);
-        }
+// ═══════════════════════════ MAP INIT ═══════════════════════════
+const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([18.528, 73.858], 14);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 16, attribution: 'Esri, HERE, Garmin'
+}).addTo(map);
+const liveLayers = L.layerGroup().addTo(map);
 
-        function getLeaseColor(state) {
-            switch(state) {
-                case 'RESERVED': return '#f59e0b';
-                case 'PICKED_UP': return '#3b82f6';
-                case 'DELIVERED': return '#10b981';
-                case 'STRANDED':
-                case 'UNSAFE':
-                    return '#f43f5e';
-                default:
-                    return '#64748b';
-            }
+// ═══════════════════════════ STATE ═══════════════════════════
+const initialShelfLife = {};
+const riderHeartbeats = {};
+let lastKnownStatus = null;
+let prevLogLen = 0;
+let seenStranded = new Set();
+let isStreamHovered = false;
+let displayedTime = 0;   // for smooth clock interpolation
+let lastServerTime = 0;
+let lastPollTs = Date.now();
+let connOk = true;
+
+// ═══════════════════════════ EVENT STREAM HOVER ═══════════════════════════
+const logStreamEl = document.getElementById('log-stream');
+logStreamEl.addEventListener('mouseenter', () => isStreamHovered = true);
+logStreamEl.addEventListener('mouseleave', () => { isStreamHovered = false; });
+
+// ═══════════════════════════ COMMAND ACTIONS ═══════════════════════════
+async function loadDemo() {
+  try {
+    const res = await fetch('/sim/demo', {method:'POST'});
+    const data = await res.json();
+    Object.keys(data.riders || {}).forEach(rid => riderHeartbeats[rid] = true);
+    await updateDashboard();
+  } catch(e) { console.error('Demo failed:', e); }
+}
+
+async function addTightBatch() {
+  try {
+    await fetch('/batches', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({lat:18.52, lon:73.85, qty:40, category:'cooked', shelf_life_min:12.0})
+    });
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function triggerGhost() {
+  try {
+    await fetch('/sim/ghost', {method:'POST'});
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function directDonation() {
+  try {
+    if (!lastKnownStatus || !lastKnownStatus.shelters) return;
+    const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
+    if (!openS) { showToast('No operational shelters available','warn'); return; }
+    await fetch(`/shelters/${openS.id}/direct-donation`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({qty:40})
+    });
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function closeShelter() {
+  try {
+    if (!lastKnownStatus || !lastKnownStatus.shelters) return;
+    const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
+    if (!openS) { showToast('No operational shelters to close','warn'); return; }
+    await fetch(`/shelters/${openS.id}/close`, {method:'POST'});
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function advanceClock(min = 5.0) {
+  try {
+    await fetch('/sim/advance', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({minutes: min})
+    });
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function resetEngine() {
+  try {
+    await fetch('/sim/reset', {method:'POST'});
+    Object.keys(riderHeartbeats).forEach(k => delete riderHeartbeats[k]);
+    Object.keys(initialShelfLife).forEach(k => delete initialShelfLife[k]);
+    prevLogLen = 0;
+    seenStranded = new Set();
+    document.getElementById('toast-area').innerHTML = '';
+    await updateDashboard();
+  } catch(e) { console.error(e); }
+}
+
+async function pickupLease(lid) {
+  try { await fetch(`/leases/${lid}/pickup`, {method:'POST'}); await updateDashboard(); } catch(e) { console.error(e); }
+}
+
+async function deliverLease(lid) {
+  try { await fetch(`/leases/${lid}/deliver`, {method:'POST'}); await updateDashboard(); } catch(e) { console.error(e); }
+}
+
+function toggleRiderHeartbeat(rid) {
+  riderHeartbeats[rid] = !riderHeartbeats[rid];
+  renderFleetRow();
+}
+
+// ═══════════════════════════ TOAST SYSTEM ═══════════════════════════
+function showToast(msg, type='stranded') {
+  const area = document.getElementById('toast-area');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  if (type === 'warn') t.style.background = 'rgba(180,100,10,.92)';
+  t.innerHTML = `${msg}<button class="toast-close" onclick="this.parentElement.remove()">&times;</button>`;
+  area.appendChild(t);
+}
+
+// ═══════════════════════════ RENDER HELPERS ═══════════════════════════
+
+function getLeaseColor(state) {
+  switch(state) {
+    case 'RESERVED': return '#FBBF24';
+    case 'PICKED_UP': return '#22D3EE';
+    case 'DELIVERED': return '#34D399';
+    case 'STRANDED': case 'UNSAFE': return '#F87171';
+    default: return '#64748B';
+  }
+}
+
+function renderFleetRow() {
+  const container = document.getElementById('hb-pills-container');
+  const riders = lastKnownStatus ? lastKnownStatus.riders || {} : {};
+  const rids = Object.keys(riders);
+  if (!rids.length) {
+    container.innerHTML = '<span style="color:var(--text3);font-size:10px">Fleet awaiting deployment</span>';
+    return;
+  }
+  container.innerHTML = rids.map(rid => {
+    const r = riders[rid];
+    const on = riderHeartbeats[rid] !== false;
+    return `<div class="fleet-node ${on?'':'silent'}" onclick="toggleRiderHeartbeat('${rid}')" title="Click to ${on?'sever':'restore'} signal">
+      <span class="fdot"></span>${rid} ${r.busy ? '📦' : ''}
+    </div>`;
+  }).join('');
+}
+
+function badgeColor(kind) {
+  if (kind.startsWith('ALERT_')) return kind.includes('STRANDED') || kind.includes('UNSAFE') ? 'ev-ALERT_STRANDED' : 'ev-ALERT_RIDER_SILENT';
+  return `ev-${kind}`;
+}
+
+function formatEventMessage(kind, d, leases) {
+  if (!d) return '';
+  switch(kind) {
+    case 'ASSIGNED':
+      return `Lease ${d.lease}: Rider ${d.rider} → Shelter ${d.shelter} (${d.qty} meals, pick by ${d.pickup_deadline}m)`;
+    case 'BATCH':
+      return `Donor batch ${d.id}: ${d.qty} units (shelf-life: ${d.expires_at}m)`;
+    case 'PICKED_UP':
+      return `Lease ${d.lease} cargo loaded — in transit`;
+    case 'DELIVERED':
+      return `Lease ${d.lease} delivered to ${d.shelter} (${d.qty} meals)`;
+    case 'UNPLACED':
+      return `Batch ${d.batch || ''} unplaced: ${d.qty} meals (${d.why || 'no safe route'})`;
+    case 'RELEASED':
+      return `Lease ${d.lease} released (${d.why || 'expired'}, ${d.qty} meals returned)`;
+    case 'REROUTED':
+      return `Lease ${d.lease} rerouted ${d.frm} → ${d.to} (ETA ${d.eta}m${d.split_qty ? ', split ' + d.split_qty : ''})`;
+    case 'ALERT_STRANDED': {
+      const r = (leases && leases[d.lease]) ? leases[d.lease].rider : (d.lease || '');
+      return `Rider ${r} stranded with ${d.qty} meals — coordinator action required`;
+    }
+    case 'ALERT_UNSAFE':
+      return `Lease ${d.lease} expired in transit — unsafe to serve`;
+    case 'ALERT_RIDER_SILENT':
+      return `Lease ${d.lease} rider silent while carrying cargo`;
+    case 'SHELTER_CLOSED':
+      return `Shelter ${d.shelter} closed — rebalancing incoming leases`;
+    case 'DIRECT_DONATION':
+      return `Shelter ${d.shelter} received ${d.qty} direct drop-off meals`;
+    default:
+      return JSON.stringify(d);
+  }
+}
+
+function renderNewEvents(log, leases) {
+  const newEvents = log.slice(prevLogLen);
+  if (newEvents.length === 0 && prevLogLen > 0) return;
+
+  // Check for new alerts / micro-interactions
+  for (const ev of newEvents) {
+    const kind = ev[1];
+    const d = ev[2] || {};
+    const key = `${ev[0]}-${kind}-${JSON.stringify(d)}`;
+
+    if ((kind === 'ALERT_STRANDED' || kind === 'ALERT_UNSAFE') && !seenStranded.has(key)) {
+      seenStranded.add(key);
+      const leaseObj = leases ? leases[d.lease] : null;
+      const rider = (leaseObj && leaseObj.rider) ? leaseObj.rider : (d.lease || 'Rider');
+      const qty = d.qty || (leaseObj ? leaseObj.qty : '40');
+      const msg = kind === 'ALERT_STRANDED'
+        ? `Rider ${rider} stranded — ${qty} meals, manual intervention needed.`
+        : `Lease ${d.lease} expired cargo — do NOT serve.`;
+      showToast(msg);
+    }
+
+    if (kind === 'RELEASED') {
+      const leaseObj = leases ? leases[d.lease] : null;
+      const rid = leaseObj ? leaseObj.rider : null;
+      if (rid) {
+        const markerEl = document.getElementById(`rmarker-${rid}`);
+        if (markerEl) {
+          markerEl.classList.remove('rider-flash');
+          void markerEl.offsetWidth;
+          markerEl.classList.add('rider-flash');
         }
       }
     }
   }
 
-        // ==================== DISPATCH COMMAND ACTIONS ====================
+  // Full render
+  const el = document.getElementById('log-stream');
+  const reversed = log.slice().reverse();
+  if (!reversed.length) {
+    el.innerHTML = '<div class="empty-state">Telemetry pipeline ready</div>';
+  } else {
+    el.innerHTML = reversed.map(ev => {
+      const time = typeof ev[0] === 'number' ? ev[0].toFixed(1) : ev[0];
+      const kind = ev[1];
+      const d = ev[2] || {};
+      const msg = formatEventMessage(kind, d, leases);
+      const isAlert = kind.startsWith('ALERT_');
+      return `<div class="ev-row ${isAlert ? 'ev-alert' : ''}">
+        <span class="ev-time">${time}m</span>
+        <span class="ev-badge ${badgeColor(kind)}">${kind}</span>
+        <span class="ev-msg">${msg}</span>
+      </div>`;
+    }).join('');
+  }
 
-        async function loadDemo() {
-            try {
-                const res = await fetch('/sim/demo', { method: 'POST' });
-                const data = await res.json();
-                Object.keys(data.riders || {}).forEach(rid => riderHeartbeats[rid] = true);
-                await updateDashboard();
-            } catch(e) { console.error('Demo bootstrap failed:', e); }
-        }
+  if (!isStreamHovered) {
+    el.scrollTop = 0;
+  }
 
-        async function addTightBatch() {
-            try {
-                await fetch('/batches', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        lat: 18.52,
-                        lon: 73.85,
-                        qty: 40,
-                        category: 'cooked',
-                        shelf_life_min: 12.0
-                    })
-                });
-                await updateDashboard();
-            } catch(e) { console.error('Tight batch injection failed:', e); }
-        }
+  prevLogLen = log.length;
+  document.getElementById('log-count').textContent = `${log.length} events`;
+}
 
 // ═══════════════════════════ MAIN UPDATE ═══════════════════════════
 async function updateDashboard() {
@@ -1051,29 +942,14 @@ async function updateDashboard() {
     lastKnownStatus = data;
     const now = data.now || 0;
 
-        async function directDonation() {
-            try {
-                if (!lastKnownStatus || !lastKnownStatus.shelters) return;
-                const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
-                if (!openS) { alert('No operational shelters available.'); return; }
-                await fetch(`/shelters/${openS.id}/direct-donation`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ qty: 40 })
-                });
-                await updateDashboard();
-            } catch(e) { console.error('Direct donation failed:', e); }
-        }
+    // Connection OK
+    if (!connOk) { connOk = true; document.getElementById('conn-lost').classList.remove('show'); }
 
-        async function closeShelter() {
-            try {
-                if (!lastKnownStatus || !lastKnownStatus.shelters) return;
-                const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
-                if (!openS) { alert('No operational shelters to close.'); return; }
-                await fetch(`/shelters/${openS.id}/close`, { method: 'POST' });
-                await updateDashboard();
-            } catch(e) { console.error('Close shelter failed:', e); }
-        }
+    // Smooth clock
+    lastServerTime = now;
+    lastPollTs = Date.now();
+    displayedTime = now;
+    document.getElementById('clock-display').innerText = `${now.toFixed(1)}m`;
 
     // Buffer chip
     const bufMin = data.config ? data.config.buffer_min : (data.safety_buffer_min || 10);
@@ -1104,65 +980,55 @@ async function updateDashboard() {
     renderFleetRow();
     liveLayers.clearLayers();
 
-        function toggleRiderHeartbeat(rid) {
-            riderHeartbeats[rid] = !riderHeartbeats[rid];
-            renderHeartbeatMatrix();
-        }
+    // ---------- MAP: Donors ----------
+    const batches = data.batches || {};
+    Object.values(batches).forEach(b => {
+      if (!b.loc) return;
+      const icon = L.divIcon({
+        className: '', html: `<div class="donor-marker">◆ ${b.id}</div>`,
+        iconSize: [70,20], iconAnchor: [35,10]
+      });
+      L.marker(b.loc, {icon}).addTo(liveLayers)
+        .bindPopup(`<b>Donor ${b.id}</b><br>Category: ${b.category}<br>Remaining: ${b.unallocated}/${b.qty}<br>Expires: ${b.expires_at.toFixed(1)}m`);
+    });
 
-        function renderHeartbeatMatrix() {
-            const container = document.getElementById('hb-pills-container');
-            const riders = lastKnownStatus ? lastKnownStatus.riders || {} : {};
-            const rids = Object.keys(riders);
-            if (rids.length === 0) {
-                container.innerHTML = '<span style="color:var(--text-tertiary); font-size:11px; grid-column: span 4;">Fleet awaiting deployment.</span>';
-                return;
-            }
-            container.innerHTML = rids.map(rid => {
-                const r = riders[rid];
-                const isTransmitting = riderHeartbeats[rid] !== false;
-                return `
-                    <div class="rider-node ${isTransmitting ? '' : 'silent'}" onclick="toggleRiderHeartbeat('${rid}')" title="Click to ${isTransmitting ? 'sever' : 'restore'} signal for ${rid}">
-                        <div class="rider-node-top">
-                            <span class="node-id">${rid}</span>
-                            <span class="node-signal"></span>
-                        </div>
-                        <div class="node-status">${isTransmitting ? (r.busy ? 'Hauling' : 'Standby') : 'Lost Signal'}</div>
-                    </div>
-                `;
-            }).join('');
-        }
+    // ---------- MAP: Shelters ----------
+    sheltersList.forEach(s => {
+      if (!s.loc) return;
+      const used = (s.delivered || 0) + (s.need - (s.free !== undefined ? s.free : s.need));
+      const label = `${used}/${s.need}`;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="sh-marker ${s.open?'sh-open':'sh-closed'}" style="width:44px;height:44px">
+          <span class="sh-id">${s.id}</span><span class="sh-cap">${label}</span>
+        </div>`,
+        iconSize: [44,44], iconAnchor: [22,22]
+      });
+      L.marker(s.loc, {icon}).addTo(liveLayers)
+        .bindPopup(`<b>Shelter ${s.id}</b><br>Status: <b style="color:${s.open?'#34D399':'#F87171'}">${s.open?'OPEN':'CLOSED'}</b><br>
+          Demand: ${s.free} free / ${s.need} capacity<br>Delivered: ${s.delivered}<br>
+          Supplies: ${s.supplies && s.supplies.length ? s.supplies.join(', ') : 'None'}`);
+    });
 
-        function renderLogs(log) {
-            const logStream = document.getElementById('log-stream');
-            let filtered = log.slice().reverse();
-            if (currentLogFilter === 'alerts') {
-                filtered = filtered.filter(e => e[1].startsWith('ALERT_'));
-            }
-
-            if (filtered.length === 0) {
-                logStream.innerHTML = '<div style="color:var(--text-tertiary); font-size:11px; text-align:center; margin-top:20px;">No telemetry records matching filter.</div>';
-                return;
-            }
-
-            logStream.innerHTML = filtered.map(e => {
-                const time = typeof e[0] === 'number' ? `${e[0].toFixed(1)}m` : `${e[0]}m`;
-                const kind = e[1];
-                const details = e[2] ? JSON.stringify(e[2]) : '';
-                const isAlert = kind.startsWith('ALERT_');
-
-                return `
-                    <div class="feed-entry ${isAlert ? 'alert' : ''}">
-                        <div class="feed-top">
-                            <span class="feed-time">[${time}]</span>
-                            <span class="feed-type">${kind}</span>
-                        </div>
-                        <div class="feed-payload">${details}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // ==================== REAL-TIME TELEMETRY ENGINE ====================
+    // ---------- MAP: Riders ----------
+    ridersList.forEach(r => {
+      if (!r.loc) return;
+      const isOnline = r.online;
+      // Check if stranded
+      const isStranded = leaseList.some(l => l.rider === r.id && l.state === 'STRANDED');
+      const cls = isStranded ? 'rider-stranded' : (isOnline ? 'rider-online' : 'rider-offline');
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="rider-marker ${cls}" id="rmarker-${r.id}">
+          <span class="r-label">${r.id}</span>🛵
+        </div>`,
+        iconSize: [28,28], iconAnchor: [14,14]
+      });
+      L.marker(r.loc, {icon}).addTo(liveLayers)
+        .bindPopup(`<b>Rider ${r.id}</b><br>
+          Status: <b style="color:${isOnline?'#22D3EE':'#94A3B8'}">${isOnline?'ONLINE':'OFFLINE'}</b><br>
+          Capacity: ${r.capacity}<br>${r.busy?'📦 Hauling':'Available'}<br>Strikes: ${r.strikes||0}`);
+    });
 
     // ---------- MAP: Lease lines ----------
     leaseList.forEach(l => {
@@ -1181,208 +1047,60 @@ async function updateDashboard() {
         ${l.rider} → ${l.shelter}<br>Qty: ${l.qty}<br>Deadline: ${Number(l.deadline).toFixed(1)}m`);
     });
 
-                // Sync Clock
-                document.getElementById('clock-display').innerText = `${Number(now).toFixed(1)}m`;
+    // ---------- LEASE TABLE (RESERVED and PICKED_UP only) ----------
+    const tableBody = document.getElementById('leases-table-body');
+    document.getElementById('lease-stats').textContent = `${activeLeases.length} active`;
+    if (!activeLeases.length) {
+      tableBody.innerHTML = '<tr><td colspan="6" class="empty-state">No active leases</td></tr>';
+    } else {
+      tableBody.innerHTML = activeLeases.map(l => {
+        const b = batches[l.batch];
+        const timeLeft = b ? Math.max(0, b.expires_at - now) : 0;
+        let cdClass = 'countdown-ok';
+        if (timeLeft <= 2) cdClass = 'countdown-crit';
+        else if (timeLeft <= 5) cdClass = 'countdown-warn';
+        const canPickup = l.state === 'RESERVED';
+        const canDeliver = l.state === 'PICKED_UP';
+        return `<tr>
+          <td>${l.rider}</td>
+          <td>${l.qty} ${b ? b.category : ''}</td>
+          <td>${l.shelter}</td>
+          <td><span class="countdown ${cdClass}" data-expires="${b?b.expires_at:0}">${timeLeft.toFixed(1)}m</span></td>
+          <td><span class="chip chip-${l.state}">${l.state.replace('_',' ')}</span></td>
+          <td>
+            ${canPickup ? `<button class="act-btn act-pickup" onclick="pickupLease('${l.id}')">Pickup</button>` : ''}
+            ${canDeliver ? `<button class="act-btn act-deliver" onclick="deliverLease('${l.id}')">Deliver</button>` : ''}
+            ${(!canPickup && !canDeliver) ? '<span style="color:var(--text3)">—</span>' : ''}
+          </td>
+        </tr>`;
+      }).join('');
+    }
 
-                // Calculate Metrics
-                const riders = data.riders || {};
-                const ridersList = Object.values(riders);
-                const onlineRiders = ridersList.filter(r => r.online).length;
-                document.getElementById('metric-fleet').innerText = `${onlineRiders} / ${ridersList.length}`;
+    // ---------- EVENT LOG ----------
+    renderNewEvents(data.log || [], data.leases || {});
 
-                const shelters = data.shelters || {};
-                const sheltersList = Object.values(shelters);
-                const openShelters = sheltersList.filter(s => s.open).length;
-                document.getElementById('metric-shelters').innerText = `${openShelters} / ${sheltersList.length}`;
+  } catch (err) {
+    console.error('Telemetry update failed:', err);
+    if (connOk) { connOk = false; document.getElementById('conn-lost').classList.add('show'); }
+  }
+}
 
-                const leases = data.leases || {};
-                const leaseList = Object.values(leases);
-                const activeLeases = leaseList.filter(l => l.state === 'RESERVED' || l.state === 'PICKED_UP').length;
-                document.getElementById('metric-leases').innerText = `${activeLeases}`;
+// ═══════════════════════════ SMOOTH CLOCK TICK ═══════════════════════════
+setInterval(() => {
+  // Interpolate displayed time between polls
+  // (sim time doesn't advance in real-time, only on tick, so just keep last value)
+  // But update countdowns in the table
+  document.querySelectorAll('.countdown[data-expires]').forEach(el => {
+    const expires = parseFloat(el.dataset.expires);
+    const timeLeft = Math.max(0, expires - lastServerTime);
+    el.textContent = timeLeft.toFixed(1) + 'm';
+    el.className = 'countdown ' + (timeLeft <= 2 ? 'countdown-crit' : timeLeft <= 5 ? 'countdown-warn' : 'countdown-ok');
+  });
+}, 500);
 
-                // Heartbeat transmissions
-                Object.keys(riders).forEach(rid => {
-                    if (riderHeartbeats[rid] === undefined) riderHeartbeats[rid] = true;
-                    if (riderHeartbeats[rid]) {
-                        fetch(`/riders/${rid}/heartbeat`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({})
-                        }).catch(() => {});
-                    }
-                });
-
-                renderHeartbeatMatrix();
-                liveLayers.clearLayers();
-
-                // 1. Render Donors
-                const batches = data.batches || {};
-                const batchEntries = Object.values(batches);
-                document.getElementById('batch-stats').innerText = `${batchEntries.length} Batches`;
-
-                batchEntries.forEach(b => {
-                    if (b.loc) {
-                        const icon = L.divIcon({
-                            className: 'donor-icon-wrap',
-                            html: `<div class="donor-node-marker">DEPOT ${b.id}</div>`,
-                            iconSize: [75, 20],
-                            iconAnchor: [37, 10]
-                        });
-                        L.marker(b.loc, { icon }).addTo(liveLayers)
-                            .bindPopup(`<b>Commercial Donor ${b.id}</b><br>Category: ${b.category}<br>Remaining: ${b.unallocated}/${b.qty}<br>Expires: ${b.expires_at}m`);
-                    }
-                });
-
-                // 2. Render Shelters
-                sheltersList.forEach(s => {
-                    if (!s.loc) return;
-                    const isOpen = s.open;
-                    const freeCount = s.free !== undefined ? s.free : (s.need - s.delivered);
-                    const html = `
-                        <div class="shelter-node ${isOpen ? 'open' : 'closed'}" style="width:48px; height:48px;">
-                            <span style="font-size:9px; opacity:0.85;">${s.id}</span>
-                            <span>${freeCount}/${s.need}</span>
-                        </div>
-                    `;
-                    const icon = L.divIcon({
-                        className: 'shelter-icon-wrap',
-                        html: html,
-                        iconSize: [48, 48],
-                        iconAnchor: [24, 24]
-                    });
-                    L.marker(s.loc, { icon }).addTo(liveLayers)
-                        .bindPopup(`
-                            <b>Shelter ${s.id}</b><br>
-                            Status: <b style="color:${isOpen ? '#10b981' : '#f43f5e'}">${isOpen ? 'OPEN' : 'CLOSED'}</b><br>
-                            Remaining Demand: ${freeCount} free / ${s.need} capacity<br>
-                            Delivered: ${s.delivered}<br>
-                            Infrastructure: ${s.supplies ? s.supplies.join(', ') || 'None' : 'None'}
-                        `);
-                });
-
-                // 3. Render Riders
-                ridersList.forEach(r => {
-                    if (!r.loc) return;
-                    const isOnline = r.online;
-                    const html = `
-                        <div class="rider-node-marker ${isOnline ? 'online' : 'offline'}">
-                            <span>🛵 ${r.id}</span>
-                            <span style="font-size:9px; opacity:0.8;">${r.busy ? 'BUSY' : 'IDLE'}</span>
-                        </div>
-                    `;
-                    const icon = L.divIcon({
-                        className: 'rider-icon-wrap',
-                        html: html,
-                        iconSize: [72, 24],
-                        iconAnchor: [36, 12]
-                    });
-                    L.marker(r.loc, { icon }).addTo(liveLayers)
-                        .bindPopup(`
-                            <b>Rider ${r.id}</b><br>
-                            Status: <b style="color:${isOnline ? '#60a5fa' : '#94a3b8'}">${isOnline ? 'ONLINE' : 'OFFLINE'}</b><br>
-                            Capacity: ${r.capacity} units<br>
-                            Cargo State: ${r.busy ? 'Hauling cargo' : 'Available'}<br>
-                            Strikes: ${r.strikes || 0}
-                        `);
-                });
-
-                // 4. Render Active Leases
-                document.getElementById('lease-stats').innerText = `${leaseList.length} Leases`;
-
-                leaseList.forEach(l => {
-                    const batch = batches[l.batch];
-                    const shelter = shelters[l.shelter];
-                    if (batch && batch.loc && shelter && shelter.loc) {
-                        const color = getLeaseColor(l.state);
-                        const polyline = L.polyline([batch.loc, shelter.loc], {
-                            color: color,
-                            weight: 4,
-                            opacity: 0.85,
-                            dashArray: l.state === 'RESERVED' ? '6, 8' : null
-                        }).addTo(liveLayers);
-
-                        polyline.bindPopup(`
-                            <b>Lease Contract ${l.id}</b><br>
-                            Status: <b style="color:${color}">${l.state}</b><br>
-                            Transit: ${l.rider} &rarr; ${l.shelter}<br>
-                            Volume: ${l.qty} items<br>
-                            Deadline: ${Number(l.deadline).toFixed(1)}m
-                        `);
-                    }
-                });
-
-                // 5. Populate Leases Table
-                const tableBody = document.getElementById('leases-table-body');
-                if (leaseList.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6" style="color:var(--text-tertiary); text-align:center; padding: 20px 0;">No active dispatch contracts</td></tr>';
-                } else {
-                    tableBody.innerHTML = leaseList.map(l => {
-                        const canPickup = l.state === 'RESERVED';
-                        const canDeliver = l.state === 'PICKED_UP';
-                        return `
-                            <tr>
-                                <td><strong>${l.id}</strong></td>
-                                <td>${l.rider} &rarr; ${l.shelter}</td>
-                                <td>${l.qty}</td>
-                                <td>${Number(l.deadline).toFixed(1)}m</td>
-                                <td><span class="chip chip-${l.state}">${l.state}</span></td>
-                                <td>
-                                    ${canPickup ? `<button class="btn-table btn-table-pickup" onclick="pickupLease('${l.id}')">Pickup</button>` : ''}
-                                    ${canDeliver ? `<button class="btn-table btn-table-deliver" onclick="deliverLease('${l.id}')">Deliver</button>` : ''}
-                                    ${(!canPickup && !canDeliver) ? `<span style="color:var(--text-tertiary);">-</span>` : ''}
-                                </td>
-                            </tr>
-                        `;
-                    }).join('');
-                }
-
-                // 6. Populate Batch Cards
-                const batchesContainer = document.getElementById('batches-list');
-                if (batchEntries.length === 0) {
-                    batchesContainer.innerHTML = '<div style="color:var(--text-tertiary); font-size:11px; padding: 12px 0;">No active surplus batches recorded.</div>';
-                } else {
-                    batchesContainer.innerHTML = batchEntries.map(b => {
-                        if (!initialShelfLife[b.id]) {
-                            initialShelfLife[b.id] = Math.max(1, b.expires_at - now);
-                        }
-                        const totalLife = initialShelfLife[b.id];
-                        const timeLeft = Math.max(0, b.expires_at - now);
-                        const pct = Math.min(100, Math.max(0, (timeLeft / totalLife) * 100));
-
-                        let barColor = '#10b981';
-                        if (timeLeft <= 0) barColor = '#f43f5e';
-                        else if (timeLeft < 10) barColor = '#f43f5e';
-                        else if (timeLeft < 25) barColor = '#f59e0b';
-
-                        return `
-                            <div class="batch-card">
-                                <div class="batch-header">
-                                    <span class="batch-id">${b.id} (${b.qty} units)</span>
-                                    <span class="badge-cat">${b.category}</span>
-                                </div>
-                                <div class="batch-meta">
-                                    <span>${timeLeft <= 0 ? '<strong style="color:#f43f5e">EXPIRED</strong>' : `${timeLeft.toFixed(1)}m left`}</span>
-                                    <span>Unplaced: ${b.unallocated}</span>
-                                </div>
-                                <div class="progress-bar-bg">
-                                    <div class="progress-bar-fill" style="width: ${pct}%; background-color: ${barColor};"></div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-
-                // 7. Render Event Log Stream
-                renderLogs(data.log || []);
-
-            } catch (err) {
-                console.error('Telemetry update failed:', err);
-            }
-        }
-
-        // Start background telemetry polling every 2 seconds
-        setInterval(updateDashboard, 2000);
-        updateDashboard();
-    </script>
+// ═══════════════════════════ POLL LOOP ═══════════════════════════
+setInterval(updateDashboard, 2000);
+updateDashboard();
+</script>
 </body>
 </html>
