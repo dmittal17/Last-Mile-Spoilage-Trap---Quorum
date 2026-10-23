@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last-Mile Spoilage Trap | Command & Chaos Console</title>
+    <!-- Leaflet CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        :root {
+            --bg-dark: #0a0e17;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --color-reserved: #facc15;
+            --color-picked: #38bdf8;
+            --color-delivered: #22c55e;
+            --color-alert: #ef4444;
+            --color-offline: #6b7280;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Header Bar */
+        header {
+            background: #0f172a;
+            border-bottom: 2px solid var(--border-color);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            color: #38bdf8;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .clock-badge {
+            background: #1e293b;
+            border: 2px solid #38bdf8;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 800;
+            font-family: monospace;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Chaos Panel Strip */
+        .chaos-strip {
+            background: #0d1527;
+            border-bottom: 2px solid #1e293b;
+            padding: 8px 16px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .chaos-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chaos-label {
+            font-size: 12px;
+            font-weight: 800;
+            color: #e2e8f0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #334155;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        /* Big readable action buttons */
+        .btn {
+            font-size: 13px;
+            font-weight: 800;
+            padding: 7px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.15); }
+        .btn:active { transform: translateY(1px); }
+
+        .btn-demo { background: #2563eb; color: #ffffff; border: 1px solid #60a5fa; }
+        .btn-tight { background: #ea580c; color: #ffffff; border: 1px solid #fb923c; }
+        .btn-ghost { background: #7c3aed; color: #ffffff; border: 1px solid #c084fc; }
+        .btn-donate { background: #0891b2; color: #ffffff; border: 1px solid #22d3ee; }
+        .btn-close { background: #dc2626; color: #ffffff; border: 1px solid #f87171; }
+        .btn-advance { background: #059669; color: #ffffff; border: 1px solid #34d399; }
+        .btn-reset { background: #475569; color: #e2e8f0; }
+
+        /* Small action buttons */
+        .btn-sm {
+            padding: 3px 8px;
+            font-size: 11px;
+            font-weight: 800;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        .btn-pickup { background: #0284c7; color: white; }
+        .btn-pickup:hover { background: #0369a1; }
+        .btn-deliver { background: #16a34a; color: white; }
+        .btn-deliver:hover { background: #15803d; }
+
+        /* Main Workspace: 2-column layout */
+        .main-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 440px;
+            overflow: hidden;
+        }
+
+        /* Left Side: Map + Bottom Monitor */
+        .left-col {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+            background: #090d16;
+        }
+
+        /* Dark-mode filter for standard tiles */
+        .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(2.5) hue-rotate(200deg) saturate(0.3) brightness(0.8);
+        }
+
+        /* Bottom Drawer: Batches & Leases */
+        .bottom-drawer {
+            background: var(--card-bg);
+            border-top: 2px solid var(--border-color);
+            padding: 10px 16px;
+            max-height: 250px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .drawer-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #93c5fd;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .batches-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 8px;
+        }
+
+        .batch-card {
+            background: #1e293b;
+            border-radius: 6px;
+            padding: 8px 10px;
+            border: 1px solid #334155;
+        }
+
+        .batch-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .batch-tag {
+            background: #0369a1;
+            color: #e0f2fe;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .progress-track {
+            background: #334155;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* Leases Table */
+        .leases-box {
+            overflow-y: auto;
+            max-height: 180px;
+        }
+        table.mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        table.mini-table th {
+            text-align: left;
+            color: #94a3b8;
+            padding: 4px 6px;
+            border-bottom: 1px solid #334155;
+            font-weight: 700;
+        }
+        table.mini-table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        /* Right Panel: Controls & Event Log */
+        .side-panel {
+            background: var(--card-bg);
+            border-left: 2px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Heartbeat Bar */
+        .heartbeat-section {
+            background: #0f172a;
+            border-bottom: 2px solid var(--border-color);
+            padding: 10px 14px;
+            flex-shrink: 0;
+        }
+        .hb-title {
+            font-size: 12px;
+            font-weight: 800;
+            color: #38bdf8;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+        }
+        .hb-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .hb-pill {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+        .hb-pill.active {
+            background: #064e3b;
+            color: #a7f3d0;
+            border-color: #059669;
+        }
+        .hb-pill.silent {
+            background: #7f1d1d;
+            color: #fecaca;
+            border-color: #ef4444;
+        }
+
+        /* Log Stream */
+        .log-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #0a0e17;
+        }
+
+        .panel-header {
+            padding: 10px 16px;
+            border-bottom: 2px solid var(--border-color);
+            background: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #38bdf8;
+        }
+
+        .log-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-row {
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: #131b2e;
+            border-left: 4px solid #3b82f6;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .log-row.alert {
+            background: #450a0a !important;
+            border-left: 4px solid #ef4444 !important;
+            color: #fecaca;
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .log-time {
+            color: #94a3b8;
+            font-family: monospace;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+        .log-kind {
+            font-weight: 800;
+            color: #67e8f9;
+        }
+        .log-row.alert .log-kind {
+            color: #f87171;
+            font-size: 13px;
+        }
+        .log-details {
+            margin-top: 3px;
+            color: #cbd5e1;
+            font-size: 11px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        /* Status Badge for Table */
+        .status-pill {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .status-RESERVED { background: #ca8a04; color: #fef08a; }
+        .status-PICKED_UP { background: #2563eb; color: #dbeafe; }
+        .status-DELIVERED { background: #16a34a; color: #dcfce7; }
+        .status-RELEASED { background: #dc2626; color: #fee2e2; }
+        .status-STRANDED { background: #9333ea; color: #f3e8ff; }
+        .status-UNSAFE { background: #b91c1c; color: #fef2f2; }
+
+        /* Map Legend Overlay */
+        .legend-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.92);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            z-index: 1000;
+            font-size: 11px;
+            backdrop-filter: blur(4px);
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .legend-color { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* Map Marker Icons */
+        .shelter-marker-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 12px;
+            text-align: center;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.8);
+            line-height: 1.1;
+        }
+        .shelter-marker-icon.open { background: #16a34a; border-color: #86efac; }
+        .shelter-marker-icon.closed { background: #dc2626; border-color: #fca5a5; }
+
+        .rider-marker-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 6px;
+            border-radius: 5px;
+            font-weight: 800;
+            font-size: 12px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.8);
+            border: 2px solid #ffffff;
+            white-space: nowrap;
+        }
+        .rider-marker-icon.online { background: #0284c7; color: #ffffff; border-color: #7dd3fc; }
+        .rider-marker-icon.offline { background: #4b5563; color: #d1d5db; border-color: #9ca3af; }
+
+        .donor-marker-icon {
+            background: #ea580c;
+            border: 2px solid #fdba74;
+            color: #ffffff;
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 0 8px rgba(234, 88, 12, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Header -->
+    <header>
+        <div class="brand">
+            <div>
+                <div class="title">Last-Mile Spoilage Trap</div>
+                <div class="subtitle">Perishable Food & Medical Dispatch Console | Pune Matrix</div>
+            </div>
+        </div>
+        <div class="header-controls">
+            <button class="btn btn-reset" onclick="resetEngine()">🔄 Reset Engine</button>
+            <div class="clock-badge">
+                <span>⏱️ CLOCK:</span>
+                <span id="clock-display">0.0m</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Chaos Panel Strip -->
+    <div class="chaos-strip">
+        <div class="chaos-group">
+            <span class="chaos-label">⚡ Judge Controls</span>
+            <button class="btn btn-demo" onclick="loadDemo()">🚀 Load Demo (180 Meals)</button>
+            <button class="btn btn-tight" onclick="addTightBatch()">⏱️ Add Tight Batch (12m)</button>
+            <button class="btn btn-ghost" onclick="triggerGhost()">👻 Ghost Rider (6m Silent)</button>
+            <button class="btn btn-donate" onclick="directDonation()">📦 Direct Donation (Fill Shelter)</button>
+            <button class="btn btn-close" onclick="closeShelter()">🚫 Close Shelter</button>
+            <button class="btn btn-advance" onclick="advanceClock(5)">⏩ Advance 5m</button>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="main-container">
+        <!-- Left: Map & Bottom Drawer -->
+        <div class="left-col">
+            <div id="map"></div>
+
+            <!-- Legend Overlay -->
+            <div class="legend-overlay">
+                <div style="font-weight:bold; margin-bottom:4px; color:#38bdf8;">ACTIVE LEASES</div>
+                <div class="legend-item"><div class="legend-color" style="background:#facc15;"></div> RESERVED</div>
+                <div class="legend-item"><div class="legend-color" style="background:#38bdf8;"></div> PICKED_UP</div>
+                <div class="legend-item"><div class="legend-color" style="background:#22c55e;"></div> DELIVERED</div>
+                <div class="legend-item"><div class="legend-color" style="background:#ef4444;"></div> STRANDED / UNSAFE</div>
+                <div style="font-weight:bold; margin:6px 0 3px; color:#38bdf8;">ENTITIES</div>
+                <div class="legend-item"><div class="legend-color" style="background:#16a34a; border-radius:50%;"></div> Open Shelter (free/need)</div>
+                <div class="legend-item"><div class="legend-color" style="background:#dc2626; border-radius:50%;"></div> Closed Shelter</div>
+                <div class="legend-item"><div class="legend-color" style="background:#0284c7;"></div> Online Rider</div>
+                <div class="legend-item"><div class="legend-color" style="background:#4b5563;"></div> Offline Rider</div>
+            </div>
+
+            <!-- Bottom Drawer: Batches Expiry + Active Leases Actions -->
+            <div class="bottom-drawer">
+                <!-- Batches Expiry Countdown -->
+                <div>
+                    <div class="drawer-title">
+                        <span>Batch Expiry Countdown</span>
+                        <span id="batch-stats" style="color:#94a3b8; font-size:11px;">0 Batches</span>
+                    </div>
+                    <div class="batches-grid" id="batches-list">
+                        <div style="color:#64748b; font-size:12px;">No active batches. Click "Load Demo" to begin.</div>
+                    </div>
+                </div>
+
+                <!-- Active Leases Actions -->
+                <div>
+                    <div class="drawer-title">
+                        <span>Active Leases & Dispatch Controls</span>
+                        <span id="lease-stats" style="color:#94a3b8; font-size:11px;">0 Leases</span>
+                    </div>
+                    <div class="leases-box">
+                        <table class="mini-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Rider &rarr; Shelter</th>
+                                    <th>Qty</th>
+                                    <th>State</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leases-table-body">
+                                <tr><td colspan="5" style="color:#64748b;">No active leases</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Rider Heartbeat Toggles & Event Log Stream -->
+        <div class="side-panel">
+            <!-- Rider Heartbeat Toggles -->
+            <div class="heartbeat-section">
+                <div class="hb-title">
+                    <span>🛵 Rider Heartbeat Toggles</span>
+                    <small style="color:#94a3b8; font-weight:normal;">Click to toggle silence</small>
+                </div>
+                <div class="hb-pills" id="hb-pills-container">
+                    <span style="color:#64748b; font-size:11px;">No riders registered.</span>
+                </div>
+            </div>
+
+            <!-- Event Log Stream -->
+            <div class="log-section">
+                <div class="panel-header">
+                    <div class="panel-title">Real-Time Event Stream</div>
+                    <span id="log-count" style="font-size:12px; color:#94a3b8; font-family:monospace;">0 events</span>
+                </div>
+                <div class="log-container" id="log-stream">
+                    <div style="color: #64748b; font-size:12px; text-align:center; margin-top:20px;">Waiting for system telemetry...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Initialize Map centered on Pune (18.52, 73.85)
+        const map = L.map('map', {
+            zoomControl: true,
+            attributionControl: false
+        }).setView([18.52, 73.85], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            subdomains: 'abc'
+        }).addTo(map);
+
+        const liveLayers = L.layerGroup().addTo(map);
+
+        // State tracking
+        const initialShelfLife = {};
+        const riderHeartbeats = {}; // rid -> true (pinging) / false (silent)
+        let lastKnownStatus = null;
+
+        function getLeaseColor(state) {
+            switch(state) {
+                case 'RESERVED': return '#facc15'; // yellow
+                case 'PICKED_UP': return '#38bdf8'; // blue
+                case 'DELIVERED': return '#22c55e'; // green
+                case 'STRANDED':
+                case 'UNSAFE':
+                    return '#ef4444'; // red
+                default:
+                    return '#94a3b8';
+            }
+        }
+
+        // ==================== CHAOS PANEL ACTIONS ====================
+
+        async function loadDemo() {
+            try {
+                const res = await fetch('/sim/demo', { method: 'POST' });
+                const data = await res.json();
+                // Set all 7 riders to heartbeat by default
+                Object.keys(data.riders || {}).forEach(rid => riderHeartbeats[rid] = true);
+                await updateDashboard();
+            } catch(e) { console.error('Load demo failed:', e); }
+        }
+
+        async function addTightBatch() {
+            try {
+                await fetch('/batches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: 18.52,
+                        lon: 73.85,
+                        qty: 40,
+                        category: 'cooked',
+                        shelf_life_min: 12.0
+                    })
+                });
+                await updateDashboard();
+            } catch(e) { console.error('Add tight batch failed:', e); }
+        }
+
+        async function triggerGhost() {
+            try {
+                await fetch('/sim/ghost', { method: 'POST' });
+                await updateDashboard();
+            } catch(e) { console.error('Ghost simulation failed:', e); }
+        }
+
+        async function directDonation() {
+            try {
+                if (!lastKnownStatus || !lastKnownStatus.shelters) return;
+                const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
+                if (!openS) { alert('No open shelters available.'); return; }
+                await fetch(`/shelters/${openS.id}/direct-donation`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qty: 40 })
+                });
+                await updateDashboard();
+            } catch(e) { console.error('Direct donation failed:', e); }
+        }
+
+        async function closeShelter() {
+            try {
+                if (!lastKnownStatus || !lastKnownStatus.shelters) return;
+                const openS = Object.values(lastKnownStatus.shelters).find(s => s.open);
+                if (!openS) { alert('No open shelters to close.'); return; }
+                await fetch(`/shelters/${openS.id}/close`, { method: 'POST' });
+                await updateDashboard();
+            } catch(e) { console.error('Close shelter failed:', e); }
+        }
+
+        async function advanceClock(min = 5.0) {
+            try {
+                await fetch('/sim/advance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ minutes: min })
+                });
+                await updateDashboard();
+            } catch(e) { console.error('Advance clock failed:', e); }
+        }
+
+        async function resetEngine() {
+            try {
+                await fetch('/sim/reset', { method: 'POST' });
+                Object.keys(riderHeartbeats).forEach(k => delete riderHeartbeats[k]);
+                Object.keys(initialShelfLife).forEach(k => delete initialShelfLife[k]);
+                await updateDashboard();
+            } catch(e) { console.error('Reset failed:', e); }
+        }
+
+        async function pickupLease(lid) {
+            try {
+                await fetch(`/leases/${lid}/pickup`, { method: 'POST' });
+                await updateDashboard();
+            } catch(e) { console.error('Pickup failed:', e); }
+        }
+
+        async function deliverLease(lid) {
+            try {
+                await fetch(`/leases/${lid}/deliver`, { method: 'POST' });
+                await updateDashboard();
+            } catch(e) { console.error('Deliver failed:', e); }
+        }
+
+        function toggleRiderHeartbeat(rid) {
+            riderHeartbeats[rid] = !riderHeartbeats[rid];
+            renderHeartbeatToggles();
+        }
+
+        function renderHeartbeatToggles() {
+            const container = document.getElementById('hb-pills-container');
+            const riders = lastKnownStatus ? lastKnownStatus.riders || {} : {};
+            const rids = Object.keys(riders);
+            if (rids.length === 0) {
+                container.innerHTML = '<span style="color:#64748b; font-size:11px;">No riders registered.</span>';
+                return;
+            }
+            container.innerHTML = rids.map(rid => {
+                const isActive = riderHeartbeats[rid] !== false;
+                return `
+                    <div class="hb-pill ${isActive ? 'active' : 'silent'}" onclick="toggleRiderHeartbeat('${rid}')" title="Click to ${isActive ? 'silence' : 'activate'} ${rid}">
+                        <span>🛵 ${rid}</span>
+                        <span>${isActive ? '🟢 PING' : '🔴 SILENT'}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== DASHBOARD SYNC & RENDER ====================
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/status');
+                if (!response.ok) return;
+                const data = await response.json();
+                lastKnownStatus = data;
+                const now = data.now || 0;
+
+                // Update clock
+                document.getElementById('clock-display').innerText = `${Number(now).toFixed(1)}m`;
+
+                // Auto-heartbeat active riders
+                const riders = data.riders || {};
+                Object.keys(riders).forEach(rid => {
+                    if (riderHeartbeats[rid] === undefined) riderHeartbeats[rid] = true;
+                    if (riderHeartbeats[rid]) {
+                        fetch(`/riders/${rid}/heartbeat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({})
+                        }).catch(() => {});
+                    }
+                });
+
+                renderHeartbeatToggles();
+                liveLayers.clearLayers();
+
+                // Render Donors
+                const batches = data.batches || {};
+                const batchEntries = Object.values(batches);
+                document.getElementById('batch-stats').innerText = `${batchEntries.length} Batches`;
+
+                batchEntries.forEach(b => {
+                    if (b.loc) {
+                        const icon = L.divIcon({
+                            className: 'donor-icon-wrap',
+                            html: `<div class="donor-marker-icon">📦 ${b.id} (${b.category})</div>`,
+                            iconSize: [80, 22],
+                            iconAnchor: [40, 11]
+                        });
+                        L.marker(b.loc, { icon }).addTo(liveLayers)
+                            .bindPopup(`<b>Donor Batch: ${b.id}</b><br>Category: ${b.category}<br>Unallocated: ${b.unallocated}/${b.qty}<br>Expires: ${b.expires_at}m`);
+                    }
+                });
+
+                // Render Shelters
+                const shelters = data.shelters || {};
+                Object.values(shelters).forEach(s => {
+                    if (!s.loc) return;
+                    const isOpen = s.open;
+                    const freeCount = s.free !== undefined ? s.free : (s.need - s.delivered);
+                    const html = `
+                        <div class="shelter-marker-icon ${isOpen ? 'open' : 'closed'}" style="width:50px; height:50px;">
+                            <span style="font-size:10px; opacity:0.9;">${s.id}</span>
+                            <span>${freeCount}/${s.need}</span>
+                        </div>
+                    `;
+                    const icon = L.divIcon({
+                        className: 'shelter-icon-wrap',
+                        html: html,
+                        iconSize: [50, 50],
+                        iconAnchor: [25, 25]
+                    });
+                    L.marker(s.loc, { icon }).addTo(liveLayers)
+                        .bindPopup(`
+                            <b>Shelter ${s.id}</b><br>
+                            Status: <b style="color:${isOpen ? '#4ade80' : '#f87171'}">${isOpen ? 'OPEN' : 'CLOSED'}</b><br>
+                            Capacity: ${freeCount} free / ${s.need} need<br>
+                            Delivered: ${s.delivered}<br>
+                            Supplies: ${s.supplies ? s.supplies.join(', ') || 'none' : 'none'}
+                        `);
+                });
+
+                // Render Riders
+                Object.values(riders).forEach(r => {
+                    if (!r.loc) return;
+                    const isOnline = r.online;
+                    const html = `
+                        <div class="rider-marker-icon ${isOnline ? 'online' : 'offline'}">
+                            🛵 ${r.id} ${r.busy ? '• BUSY' : ''}
+                        </div>
+                    `;
+                    const icon = L.divIcon({
+                        className: 'rider-icon-wrap',
+                        html: html,
+                        iconSize: [80, 26],
+                        iconAnchor: [40, 13]
+                    });
+                    L.marker(r.loc, { icon }).addTo(liveLayers)
+                        .bindPopup(`
+                            <b>Rider ${r.id}</b><br>
+                            Status: <b style="color:${isOnline ? '#38bdf8' : '#9ca3af'}">${isOnline ? 'ONLINE' : 'OFFLINE'}</b><br>
+                            Capacity: ${r.capacity}<br>
+                            Busy: ${r.busy ? 'Yes' : 'No'}<br>
+                            Strikes: ${r.strikes || 0}
+                        `);
+                });
+
+                // Render Leases (Polylines + Table)
+                const leases = data.leases || {};
+                const leaseEntries = Object.values(leases);
+                document.getElementById('lease-stats').innerText = `${leaseEntries.length} Leases`;
+
+                leaseEntries.forEach(l => {
+                    const batch = batches[l.batch];
+                    const shelter = shelters[l.shelter];
+                    if (batch && batch.loc && shelter && shelter.loc) {
+                        const color = getLeaseColor(l.state);
+                        const polyline = L.polyline([batch.loc, shelter.loc], {
+                            color: color,
+                            weight: 5,
+                            opacity: 0.85,
+                            dashArray: l.state === 'RESERVED' ? '6, 8' : null
+                        }).addTo(liveLayers);
+
+                        polyline.bindPopup(`
+                            <b>Lease ${l.id}</b><br>
+                            State: <b style="color:${color}">${l.state}</b><br>
+                            Batch: ${l.batch} | Qty: ${l.qty}<br>
+                            Rider: ${l.rider} &rarr; Shelter: ${l.shelter}<br>
+                            Deadline: ${Number(l.deadline).toFixed(1)}m
+                        `);
+                    }
+                });
+
+                // Populate Leases Table with Pickup/Deliver buttons
+                const tableBody = document.getElementById('leases-table-body');
+                if (leaseEntries.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" style="color:#64748b;">No active leases</td></tr>';
+                } else {
+                    tableBody.innerHTML = leaseEntries.map(l => {
+                        const canPickup = l.state === 'RESERVED';
+                        const canDeliver = l.state === 'PICKED_UP';
+                        return `
+                            <tr>
+                                <td><strong>${l.id}</strong></td>
+                                <td>${l.rider} &rarr; ${l.shelter}</td>
+                                <td>${l.qty}</td>
+                                <td><span class="status-pill status-${l.state}">${l.state}</span></td>
+                                <td>
+                                    ${canPickup ? `<button class="btn-sm btn-pickup" onclick="pickupLease('${l.id}')">Pickup</button>` : ''}
+                                    ${canDeliver ? `<button class="btn-sm btn-deliver" onclick="deliverLease('${l.id}')">Deliver</button>` : ''}
+                                    ${(!canPickup && !canDeliver) ? `<span style="color:#64748b; font-size:11px;">-</span>` : ''}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                // Update Batch Countdown Bars
+                const batchesContainer = document.getElementById('batches-list');
+                if (batchEntries.length === 0) {
+                    batchesContainer.innerHTML = '<div style="color:#64748b; font-size:12px;">No active batches. Click "Load Demo" to begin.</div>';
+                } else {
+                    batchesContainer.innerHTML = batchEntries.map(b => {
+                        if (!initialShelfLife[b.id]) {
+                            initialShelfLife[b.id] = Math.max(1, b.expires_at - now);
+                        }
+                        const totalLife = initialShelfLife[b.id];
+                        const timeLeft = Math.max(0, b.expires_at - now);
+                        const pct = Math.min(100, Math.max(0, (timeLeft / totalLife) * 100));
+
+                        let barColor = '#22c55e';
+                        if (timeLeft <= 0) barColor = '#ef4444';
+                        else if (timeLeft < 10) barColor = '#ef4444';
+                        else if (timeLeft < 25) barColor = '#facc15';
+
+                        return `
+                            <div class="batch-card">
+                                <div class="batch-info">
+                                    <span>📦 ${b.id} (${b.qty})</span>
+                                    <span class="batch-tag">${b.category}</span>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-top:2px;">
+                                    <span>${timeLeft <= 0 ? '<strong style=\"color:#ef4444\">EXPIRED</strong>' : `${timeLeft.toFixed(1)}m left`}</span>
+                                    <span>Unplaced: ${b.unallocated}</span>
+                                </div>
+                                <div class="progress-track">
+                                    <div class="progress-fill" style="width: ${pct}%; background-color: ${barColor};"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Render Event Log with Alerts Highlighted Red
+                const log = data.log || [];
+                document.getElementById('log-count').innerText = `${log.length} events`;
+                const logStream = document.getElementById('log-stream');
+
+                logStream.innerHTML = log.slice().reverse().map(e => {
+                    const time = typeof e[0] === 'number' ? `${e[0].toFixed(1)}m` : `${e[0]}m`;
+                    const kind = e[1];
+                    const details = e[2] ? JSON.stringify(e[2]) : '';
+                    const isAlert = kind.startsWith('ALERT_');
+
+                    return `
+                        <div class="log-row ${isAlert ? 'alert' : ''}">
+                            <div>
+                                <span class="log-time">[${time}]</span>
+                                <span class="log-kind">${isAlert ? '⚠️ ' : ''}${kind}</span>
+                            </div>
+                            <div class="log-details">${details}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Failed to update dashboard status:', err);
+            }
+        }
+
+        // Poll /status every 2 seconds
+        setInterval(updateDashboard, 2000);
+        updateDashboard();
+    </script>
+</body>
+</html>
