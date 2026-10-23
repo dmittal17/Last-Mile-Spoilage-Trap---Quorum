@@ -84,7 +84,14 @@ class Donation(BaseModel): qty: int
 class Advance(BaseModel): minutes: float
 
 @app.get("/", include_in_schema=False)
-def dashboard():
+def login_page():
+    p = Path(__file__).with_name("login.html")
+    if p.exists():
+        return FileResponse(p, media_type="text/html")
+    return dashboard_page()
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_page():
     p = Path(__file__).with_name("dashboard.html")
     if p.exists():
         return FileResponse(p, media_type="text/html")
