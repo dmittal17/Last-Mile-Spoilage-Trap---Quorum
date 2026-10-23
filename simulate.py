@@ -45,6 +45,25 @@ def t_compatibility():
     assert not e.leases and "UNPLACED" in kinds(e)
     print("PASS infant formula refused for shelter without clean water")
 
+def t_split_fallback_shelters():
+    e = Engine(); r = e.add_rider(at(0.001), 40)
+    A = e.add_shelter(at(0.01), 40, sid="A")
+    B = e.add_shelter(at(0.015), 25, sid="B")          # capacity 25 (< 40)
+    C = e.add_shelter(at(0.025, 0.01), 25, sid="C")    # capacity 25 (< 40)
+    e.add_batch(P, 40, "cooked", 75); l = next(iter(e.leases.values()))
+    e.pickup(l.id); e.heartbeat(r.id, at(0.005)); e.tick(2); e.heartbeat(r.id, at(0.005))
+    e.direct_donation(A.id, 40)                        # A fills up mid-journey
+    active = [lx for lx in e.leases.values() if lx.rider == r.id and lx.state == "PICKED_UP"]
+    assert len(active) == 2 and {lx.shelter for lx in active} == {"B", "C"}
+    assert sum(lx.qty for lx in active) == 40
+    assert l.shelter == "B" and l.qty == 25            # nearest feasible shelter visited first
+    l2 = [lx for lx in active if lx.id != l.id][0]
+    assert l2.shelter == "C" and l2.qty == 15          # remainder split to second fallback
+    for sid in ("B", "C"): assert e._used(sid) <= e.shelters[sid].need
+    assert e.deliver(l.id) and e.shelters["B"].delivered == 25 and r.busy
+    assert e.deliver(l2.id) and e.shelters["C"].delivered == 15 and not r.busy
+    print("PASS demand filled mid-transit -> split load across two fallback shelters (B: 25, C: 15)")
+
 if __name__ == "__main__":
-    for t in (t_split_180, t_tight_expiry, t_ghost, t_shelter_closes_in_transit, t_compatibility): t()
+    for t in (t_split_180, t_tight_expiry, t_ghost, t_shelter_closes_in_transit, t_compatibility, t_split_fallback_shelters): t()
     print("ALL SCENARIOS PASS")

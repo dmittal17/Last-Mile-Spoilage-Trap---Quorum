@@ -89,13 +89,16 @@ class Engine:
         l = s.leases[lid]; b = s.batches[l.batch]; r = s.riders[l.rider]; sh = s.shelters[l.shelter]
         if l.state != "PICKED_UP": return False
         if s.now > b.expires_at:
-            l.state = "UNSAFE"; r.busy = False; s.emit("ALERT_UNSAFE", lease=lid, msg="expired - do NOT serve"); return False
+            l.state = "UNSAFE"; r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
+            s.emit("ALERT_UNSAFE", lease=lid, msg="expired - do NOT serve"); return False
         if not sh.open: s._reroute(l); return l.state == "PICKED_UP"
-        l.state = "DELIVERED"; sh.delivered += l.qty; r.busy = False; r.loc = sh.loc
+        l.state = "DELIVERED"; sh.delivered += l.qty; r.loc = sh.loc
+        r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
         s.emit("DELIVERED", lease=lid, shelter=sh.id, qty=l.qty); return True
 
     def _release(s, l, why):
-        l.state = "RELEASED"; r = s.riders[l.rider]; r.busy = False
+        l.state = "RELEASED"; r = s.riders[l.rider]
+        r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
         if why in ("GHOST", "LATE_PICKUP"): r.strikes += 1
         s.batches[l.batch].unallocated += l.qty; s.emit("RELEASED", lease=l.id, why=why, qty=l.qty)
 
@@ -105,17 +108,43 @@ class Engine:
 
     # ---------- dynamic recovery ----------
     def _reroute(s, l):
-        b = s.batches[l.batch]; r = s.riders[l.rider]; best = None
-        for sh in s.shelters.values():
-            if sh.id == l.shelter or not s._compat(b, sh) or s._free(sh) < l.qty: continue
-            t = eta(r.loc, sh.loc)
-            if s.now + t + TRANSIT_BUFFER_MIN <= b.expires_at and (best is None or t < best[0]): best = (t, sh)
-        if best:
-            old = l.shelter; l.shelter = best[1].id
-            s.emit("REROUTED", lease=l.id, frm=old, to=l.shelter, eta=round(best[0], 1))
-        else:
-            l.state = "STRANDED"; r.busy = False
-            s.emit("ALERT_STRANDED", lease=l.id, qty=l.qty, msg="no safe fallback shelter; escalate to coordinator")
+        b = s.batches[l.batch]; r = s.riders[l.rider]
+        candidates = [sh for sh in s.shelters.values() if sh.id != l.shelter and s._compat(b, sh) and s._free(sh) > 0]
+        candidates.sort(key=lambda sh: eta(r.loc, sh.loc))
+
+        for sh1 in candidates:
+            t1 = eta(r.loc, sh1.loc)
+            if s.now + t1 + TRANSIT_BUFFER_MIN > b.expires_at: continue
+
+            if s._free(sh1) >= l.qty:
+                old = l.shelter; l.shelter = sh1.id
+                s.emit("REROUTED", lease=l.id, frm=old, to=l.shelter, eta=round(t1, 1))
+                return
+
+            q1 = min(l.qty, s._free(sh1))
+            q2 = l.qty - q1
+            best2 = None
+            for sh2 in candidates:
+                if sh2.id == sh1.id or s._free(sh2) < q2: continue
+                t2 = eta(sh1.loc, sh2.loc)
+                if s.now + t1 + t2 + TRANSIT_BUFFER_MIN <= b.expires_at:
+                    if best2 is None or t2 < best2[0]:
+                        best2 = (t2, sh2)
+
+            if best2:
+                t2, sh2 = best2
+                old = l.shelter
+                l.shelter = sh1.id
+                l.qty = q1
+                l2 = Lease(f"L{next(s._n)}", b.id, r.id, sh2.id, q2, l.deadline, state="PICKED_UP")
+                s.leases[l2.id] = l2
+                s.emit("REROUTED", lease=l.id, frm=old, to=l.shelter, eta=round(t1, 1), split_qty=q1)
+                s.emit("REROUTED", lease=l2.id, frm=old, to=l2.shelter, eta=round(t1 + t2, 1), split_qty=q2)
+                return
+
+        l.state = "STRANDED"
+        r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
+        s.emit("ALERT_STRANDED", lease=l.id, qty=l.qty, msg="no safe fallback shelter; escalate to coordinator")
 
     def _rebalance(s, sh):
         while s._free(sh) < 0:
@@ -138,7 +167,9 @@ class Engine:
             if l.state == "RESERVED" and (s.now > l.deadline or not s._online(r)): s._release(l, "GHOST")
             elif l.state == "PICKED_UP":
                 if s.now > s.batches[l.batch].expires_at:
-                    l.state = "UNSAFE"; r.busy = False; s.emit("ALERT_UNSAFE", lease=l.id, msg="expired in transit")
+                    l.state = "UNSAFE"
+                    r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
+                    s.emit("ALERT_UNSAFE", lease=l.id, msg="expired in transit")
                 elif not s._online(r): s.emit("ALERT_RIDER_SILENT", lease=l.id, msg="has cargo, unresponsive")
         s._redispatch_all()
 
