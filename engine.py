@@ -222,10 +222,12 @@ class Engine:
 
     def status(s):
         return {
+            "now":           s.now,
             "batches":       {b.id: vars(b) for b in s.batches.values()},
             "leases":        {l.id: vars(l) for l in s.leases.values()},
             "shelters":      {x.id: {**vars(x), "supplies": sorted(x.supplies), "free": s._free(x)} for x in s.shelters.values()},
             "riders":        {r.id: {**vars(r), "online": s._online(r, 5.0)} for r in s.riders.values()},
             "log":           s.log[-50:],
             "safety_buffer_min": BUFFER_MIN,   # Change 2: expose in /status
+            "config":        {"buffer_min": BUFFER_MIN, "lease_ttl_min": LEASE_TTL_MIN},
         }
