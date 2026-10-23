@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUORUM — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0B1220;--surface:#111A2E;--border:#1F2A44;
+  --cyan:#22D3EE;--green:#34D399;--amber:#FBBF24;--red:#F87171;--slate:#94A3B8;
+  --text:#E2E8F0;--text2:#94A3B8;--pink:#F472B6;
+  --sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);overflow:hidden}
+/* animated grid bg */
+.grid-bg{position:fixed;inset:0;z-index:0;overflow:hidden}
+.grid-bg::before{
+  content:'';position:absolute;inset:-50%;width:200%;height:200%;
+  background-image:
+    linear-gradient(rgba(34,211,238,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(34,211,238,.04) 1px,transparent 1px);
+  background-size:60px 60px;
+  animation:gridDrift 25s linear infinite;
+}
+@keyframes gridDrift{0%{transform:translate(0,0)}100%{transform:translate(60px,60px)}}
+/* radial glow */
+.glow{position:fixed;width:600px;height:600px;border-radius:50%;filter:blur(120px);opacity:.15;z-index:0}
+.glow-1{background:var(--cyan);top:-200px;left:50%;transform:translateX(-50%)}
+.glow-2{background:#6366F1;bottom:-200px;right:-100px}
+
+.login-wrapper{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:20px}
+
+/* Logo */
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.logo-icon{width:40px;height:40px;background:linear-gradient(135deg,#22D3EE,#0891B2);border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 24px rgba(34,211,238,.3)}
+.logo-icon svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.logo-text{font-size:22px;font-weight:800;letter-spacing:2px;color:var(--text)}
+.tagline{font-size:13px;color:var(--text2);margin-bottom:32px;letter-spacing:.3px}
+
+/* Card */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px 28px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+
+/* Role selector */
+.role-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px}
+.role-btn{
+  padding:10px 4px;border-radius:8px;border:1px solid var(--border);background:transparent;
+  color:var(--text2);font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:4px;transition:.15s;
+}
+.role-btn:hover{border-color:rgba(34,211,238,.4);color:var(--text)}
+.role-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.role-btn.active{border-color:var(--cyan);background:rgba(34,211,238,.08);color:var(--cyan)}
+.role-btn span.role-icon{font-size:18px}
+
+/* Inputs */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin-bottom:6px}
+.field input{
+  width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);color:var(--text);font-family:var(--sans);font-size:14px;
+  transition:.15s;outline:none;
+}
+.field input::placeholder{color:rgba(148,163,184,.5)}
+.field input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(34,211,238,.12)}
+.field input.error-border{border-color:var(--red)}
+
+/* Error message */
+.error-msg{
+  font-size:12px;color:var(--red);background:rgba(248,113,113,.08);
+  border:1px solid rgba(248,113,113,.2);border-radius:6px;padding:8px 12px;
+  margin-bottom:14px;display:none;align-items:center;gap:6px;
+}
+.error-msg.show{display:flex}
+
+/* Buttons */
+.btn-primary{
+  width:100%;padding:12px;border-radius:8px;border:none;
+  background:var(--cyan);color:#0B1220;font-family:var(--sans);font-size:14px;font-weight:700;
+  cursor:pointer;transition:.15s;letter-spacing:.3px;
+}
+.btn-primary:hover{background:#06B6D4;box-shadow:0 0 20px rgba(34,211,238,.25)}
+.btn-primary:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.btn-primary:active{transform:scale(.98)}
+
+.btn-guest{
+  width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);font-family:var(--sans);font-size:13px;font-weight:600;
+  cursor:pointer;transition:.15s;margin-top:10px;
+}
+.btn-guest:hover{border-color:var(--text2);color:var(--text);background:rgba(255,255,255,.03)}
+.btn-guest:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+.divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* Demo hint */
+.demo-hint{margin-top:20px;font-size:11px;color:var(--slate);text-align:center;line-height:1.5}
+.demo-hint code{font-family:var(--mono);color:var(--pink);font-size:11px;background:rgba(244,114,182,.08);padding:1px 5px;border-radius:3px}
+.footnote{text-align:center;margin-top:14px;font-size:10px;color:rgba(148,163,184,.5);letter-spacing:.3px}
+
+@media(max-width:480px){
+  .card{padding:28px 20px 22px}
+  .role-row{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<div class="login-wrapper">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+    </div>
+    <span class="logo-text">QUORUM</span>
+  </div>
+  <p class="tagline">Zero-waste last-mile coordination</p>
+
+  <div class="card">
+    <form id="login-form" autocomplete="off">
+      <!-- Role selector -->
+      <div class="role-row" id="role-row">
+        <button type="button" class="role-btn active" data-role="Coordinator" aria-pressed="true">
+          <span class="role-icon">🎯</span>Coordinator
+        </button>
+        <button type="button" class="role-btn" data-role="Rider" aria-pressed="false">
+          <span class="role-icon">🛵</span>Rider
+        </button>
+        <button type="button" class="role-btn" data-role="Donor" aria-pressed="false">
+          <span class="role-icon">🍱</span>Donor
+        </button>
+        <button type="button" class="role-btn" data-role="Shelter" aria-pressed="false">
+          <span class="role-icon">🏠</span>Shelter
+        </button>
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="coordinator@quorum.demo" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="••••••••" required>
+      </div>
+
+      <div class="error-msg" id="error-msg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <span id="error-text">Invalid credentials</span>
+      </div>
+
+      <button type="submit" class="btn-primary">Sign in</button>
+
+      <div class="divider">or</div>
+
+      <button type="button" class="btn-guest" id="guest-btn">Continue as guest / judge →</button>
+    </form>
+
+    <div class="demo-hint">
+      Demo accounts: <code>coordinator@quorum.demo</code> / <code>demo1234</code><br>
+      Also: <code>rider@quorum.demo</code>, <code>donor@quorum.demo</code>, <code>shelter@quorum.demo</code>
+    </div>
+  </div>
+  <p class="footnote">⚡ Demo authentication — no real credentials stored</p>
+</div>
+
+<script>
+const DEMO_ACCOUNTS = {
+  'coordinator@quorum.demo': {password:'demo1234', name:'Demo Coordinator', role:'Coordinator'},
+  'rider@quorum.demo':       {password:'demo1234', name:'Demo Rider',       role:'Rider'},
+  'donor@quorum.demo':       {password:'demo1234', name:'Demo Donor',       role:'Donor'},
+  'shelter@quorum.demo':     {password:'demo1234', name:'Demo Shelter',     role:'Shelter'},
+};
+
+let selectedRole = 'Coordinator';
+
+// Role selection
+document.getElementById('role-row').addEventListener('click', e => {
+  const btn = e.target.closest('.role-btn');
+  if (!btn) return;
+  document.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
+  btn.classList.add('active');
+  btn.setAttribute('aria-pressed','true');
+  selectedRole = btn.dataset.role;
+});
+
+// Login
+document.getElementById('login-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const pass  = document.getElementById('password').value;
+  const errEl = document.getElementById('error-msg');
+  const errText = document.getElementById('error-text');
+
+  // Clear previous errors
+  errEl.classList.remove('show');
+  document.getElementById('email').classList.remove('error-border');
+  document.getElementById('password').classList.remove('error-border');
+
+  const acct = DEMO_ACCOUNTS[email];
+  if (!acct || acct.password !== pass) {
+    errText.textContent = 'Invalid email or password. Try coordinator@quorum.demo / demo1234';
+    errEl.classList.add('show');
+    document.getElementById('email').classList.add('error-border');
+    document.getElementById('password').classList.add('error-border');
+    return;
+  }
+
+  sessionStorage.setItem('quorum_user', JSON.stringify({
+    name: acct.name,
+    role: acct.role,
+    email: email
+  }));
+  window.location.href = '/dashboard';
+});
+
+// Guest
+document.getElementById('guest-btn').addEventListener('click', () => {
+  sessionStorage.setItem('quorum_user', JSON.stringify({
+    name: 'Judge',
+    role: selectedRole,
+    email: 'guest'
+  }));
+  window.location.href = '/dashboard';
+});
+
+// If already logged in, go to dashboard
+if (sessionStorage.getItem('quorum_user')) {
+  window.location.href = '/dashboard';
+}
+</script>
+</body>
+</html>
