@@ -105,7 +105,8 @@ def shelter(s: ShelterIn):
 
 @app.post("/batches")
 def batch(b: BatchIn):
-    if b.category not in ("cooked", "medical", "ration", "formula"): raise HTTPException(400, "bad category")
+    # Delegate category validation to the engine (fail-closed via REQUIRES map).
+    # Unknown categories pass through; engine emits UNPLACED with UNKNOWN_CATEGORY reason.
     x = E.add_batch((b.lat, b.lon), b.qty, b.category, b.shelf_life_min)
     save_state()
     return {"batch": x.id, "unplaced": x.unallocated, "leases": [l for l in E.status()["leases"].values() if l["batch"] == x.id]}

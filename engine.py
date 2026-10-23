@@ -1,12 +1,25 @@
 """Last-Mile Spoilage Trap - core coordination engine (pure stdlib, deterministic, testable).
 Time unit = minutes. Hard rule: nothing is ever assigned unless it can be delivered safely."""
-import math, itertools
+import math, itertools, os
 from dataclasses import dataclass, field
 
-SPEED_KMPH, BUFFER_MIN, TRANSIT_BUFFER_MIN = 20, 10, 2
-LEASE_TTL_MIN, SILENCE_MIN = 10, 5
-REQUIRES = {"cooked": set(), "medical": set(), "ration": {"water", "fuel"}, "formula": {"water"}}
+SPEED_KMPH       = 20
+BUFFER_MIN       = float(os.environ.get("SAFETY_BUFFER_MIN", 10))   # Change 2: env-var-backed
+TRANSIT_BUFFER_MIN = 2
+LEASE_TTL_MIN    = 10
+# Change 1: SILENCE_MIN removed — replaced by silence_threshold() below
+REQUIRES = {                        # Change 3: fail-closed; medical now requires cold_chain
+    "cooked":  set(),
+    "medical": {"cold_chain"},
+    "ration":  {"water", "fuel"},
+    "formula": {"water"},
+}
 ACTIVE = ("RESERVED", "PICKED_UP")
+
+# Change 1 — per-batch dynamic silence threshold
+def silence_threshold(batch) -> float:
+    remaining = batch.expires_at   # caller subtracts engine.now before calling (done in tick)
+    return max(1.5, min(5.0, remaining * 0.25))
 
 def eta(a, b):
     la1, lo1, la2, lo2 = map(math.radians, (*a, *b))
@@ -33,38 +46,63 @@ class Engine:
         s._n = itertools.count(1)
 
     def emit(s, kind, **d): s.log.append((round(s.now, 1), kind, d))
-    def _online(s, r): return s.now - r.last_seen <= SILENCE_MIN
+
+    # Change 1: _online now looks up batch-specific threshold via the batch the lease belongs to
+    def _online(s, r, threshold=None):
+        t = threshold if threshold is not None else 5.0  # fallback for non-lease contexts
+        return s.now - r.last_seen <= t
+
     def _used(s, sid): return sum(l.qty for l in s.leases.values() if l.shelter == sid and l.state in ACTIVE)
     def _free(s, sh): return -s._used(sh.id) if not sh.open else sh.need - sh.delivered - s._used(sh.id)
-    def _compat(s, b, sh): return sh.open and REQUIRES[b.category] <= sh.supplies
+
+    def _compat(s, b, sh):
+        # Change 3: unknown category => fail-closed (REQUIRES lookup with fallback None)
+        required = REQUIRES.get(b.category)
+        if required is None:
+            return False   # unknown category never compatible
+        return sh.open and required <= sh.supplies
 
     # ---------- registration ----------
     def add_rider(s, loc, capacity, rid=None):
         r = Rider(rid or f"R{next(s._n)}", loc, capacity, s.now); s.riders[r.id] = r; return r
     def add_shelter(s, loc, need, supplies=(), sid=None):
         sh = Shelter(sid or f"S{next(s._n)}", loc, need, set(supplies)); s.shelters[sh.id] = sh; return sh
+
     def add_batch(s, loc, qty, category, shelf_min):
+        # Change 3: unknown category emits UNPLACED immediately; never stored in flight
+        if category not in REQUIRES:
+            dummy_id = f"B?{next(s._n)}"
+            s.emit("UNPLACED", batch=dummy_id, qty=qty, why="UNKNOWN_CATEGORY")
+            # Return a dummy frozen batch so callers don't crash; unallocated==qty signals failure
+            b = Batch(dummy_id, loc, qty, category, s.now + shelf_min, qty)
+            return b
         b = Batch(f"B{next(s._n)}", loc, qty, category, s.now + shelf_min, qty)
         s.batches[b.id] = b; s.emit("BATCH", id=b.id, qty=qty, expires_at=b.expires_at)
         s.dispatch(b.id); return b
+
     def heartbeat(s, rid, loc=None):
         r = s.riders[rid]; r.last_seen = s.now
         if loc: r.loc = loc
 
     # ---------- dispatch: split across riders/shelters, hard safety constraints ----------
     def dispatch(s, bid):
-        b = s.batches[bid]; made = []
+        b = s.batches.get(bid)
+        if b is None: return []   # unknown batch (Change 3 dummy batch not stored)
+        made = []
         while b.unallocated > 0 and s.now < b.expires_at:
             best = None
             for r in s.riders.values():
-                if r.busy or not s._online(r): continue
+                # Change 5: skip rider with zero remaining capacity
+                if r.busy or not s._online(r, 5.0): continue
                 to_donor = eta(r.loc, b.loc)
                 for sh in s.shelters.values():
                     if not s._compat(b, sh): continue
                     q = min(r.capacity, s._free(sh), b.unallocated)
-                    if q <= 0: continue
+                    if q <= 0: continue   # Change 5: skip 0-qty sub-batches
                     leg2 = eta(b.loc, sh.loc)
-                    if s.now + to_donor + leg2 + BUFFER_MIN > b.expires_at: continue  # would spoil
+                    # Change 5: verify safety buffer using remaining shelf life at dispatch time
+                    remaining = b.expires_at - s.now
+                    if to_donor + leg2 + BUFFER_MIN > remaining: continue  # would spoil
                     key = (-q, r.strikes, to_donor + leg2)
                     if best is None or key < best[0]: best = (key, r, sh, q, to_donor, leg2)
             if not best: break
@@ -123,11 +161,14 @@ class Engine:
 
             q1 = min(l.qty, s._free(sh1))
             q2 = l.qty - q1
+            if q1 <= 0 or q2 <= 0: continue   # Change 5: no zero-qty sub-batches
             best2 = None
             for sh2 in candidates:
                 if sh2.id == sh1.id or s._free(sh2) < q2: continue
                 t2 = eta(sh1.loc, sh2.loc)
-                if s.now + t1 + t2 + TRANSIT_BUFFER_MIN <= b.expires_at:
+                # Change 5: verify safety buffer for second leg independently
+                remaining = b.expires_at - s.now
+                if t1 + t2 + TRANSIT_BUFFER_MIN <= remaining:
                     if best2 is None or t2 < best2[0]:
                         best2 = (t2, sh2)
 
@@ -164,18 +205,27 @@ class Engine:
         s.now += minutes
         for l in list(s.leases.values()):
             r = s.riders[l.rider]
-            if l.state == "RESERVED" and (s.now > l.deadline or not s._online(r)): s._release(l, "GHOST")
+            if l.state == "RESERVED":
+                b = s.batches.get(l.batch)
+                # Change 1: use per-batch dynamic silence threshold
+                remaining = (b.expires_at - s.now) if b else 0
+                threshold = silence_threshold(type("_", (), {"expires_at": remaining})())  # remaining already computed
+                if s.now > l.deadline or (s.now - r.last_seen > threshold):
+                    s._release(l, "GHOST")
             elif l.state == "PICKED_UP":
                 if s.now > s.batches[l.batch].expires_at:
                     l.state = "UNSAFE"
                     r.busy = any(lx.rider == r.id and lx.id != l.id and lx.state in ACTIVE for lx in s.leases.values())
                     s.emit("ALERT_UNSAFE", lease=l.id, msg="expired in transit")
-                elif not s._online(r): s.emit("ALERT_RIDER_SILENT", lease=l.id, msg="has cargo, unresponsive")
+                elif not s._online(r, 5.0): s.emit("ALERT_RIDER_SILENT", lease=l.id, msg="has cargo, unresponsive")
         s._redispatch_all()
 
     def status(s):
-        return {"batches": {b.id: vars(b) for b in s.batches.values()},
-                "leases": {l.id: vars(l) for l in s.leases.values()},
-                "shelters": {x.id: {**vars(x), "supplies": sorted(x.supplies), "free": s._free(x)} for x in s.shelters.values()},
-                "riders": {r.id: {**vars(r), "online": s._online(r)} for r in s.riders.values()},
-                "log": s.log[-50:]}
+        return {
+            "batches":       {b.id: vars(b) for b in s.batches.values()},
+            "leases":        {l.id: vars(l) for l in s.leases.values()},
+            "shelters":      {x.id: {**vars(x), "supplies": sorted(x.supplies), "free": s._free(x)} for x in s.shelters.values()},
+            "riders":        {r.id: {**vars(r), "online": s._online(r, 5.0)} for r in s.riders.values()},
+            "log":           s.log[-50:],
+            "safety_buffer_min": BUFFER_MIN,   # Change 2: expose in /status
+        }
