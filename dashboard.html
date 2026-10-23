@@ -838,6 +838,11 @@
                 Reset
             </button>
         </div>
+      </div>
+      <!-- Fleet heartbeat row -->
+      <div class="fleet-row" id="hb-pills-container">
+        <span style="color:var(--text3);font-size:10px">Fleet awaiting deployment</span>
+      </div>
     </div>
 
     <!-- Main Operational Workspace -->
@@ -933,19 +938,52 @@
         </div>
     </div>
 
-    <script>
-        // 1. Initialize Map centered on Pune (18.52, 73.85)
-        const map = L.map('map', {
-            zoomControl: true,
-            attributionControl: false
-        }).setView([18.52, 73.85], 14);
+    <!-- ACTIVE LEASES / EXPIRY -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">📋 Active Leases</span>
+        <span class="panel-badge" id="lease-stats">0 active</span>
+      </div>
+      <div class="lease-scroll">
+        <table class="lt">
+          <thead>
+            <tr>
+              <th>Rider</th>
+              <th>Cargo</th>
+              <th>Dest</th>
+              <th>Time Left</th>
+              <th>State</th>
+              <th>Act</th>
+            </tr>
+          </thead>
+          <tbody id="leases-table-body">
+            <tr><td colspan="6" class="empty-state">No active leases</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            subdomains: 'abc'
-        }).addTo(map);
+  </div>
+</div>
 
-        const liveLayers = L.layerGroup().addTo(map);
+<script>
+// ═══════════════════════════ AUTH CHECK ═══════════════════════════
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('guest') === '1' || urlParams.get('demo') === '1') {
+  if (!sessionStorage.getItem('quorum_user')) {
+    sessionStorage.setItem('quorum_user', JSON.stringify({name: 'Judge', role: 'Coordinator', email: 'guest'}));
+  }
+}
+const userRaw = sessionStorage.getItem('quorum_user');
+if (!userRaw) { window.location.href = '/'; }
+const user = userRaw ? JSON.parse(userRaw) : {name:'Judge',role:'Coordinator'};
+document.getElementById('user-name').textContent = user.name;
+document.getElementById('user-role').textContent = user.role;
+document.getElementById('user-avatar').textContent = user.name.charAt(0).toUpperCase();
+document.getElementById('logout-btn').addEventListener('click', () => {
+  sessionStorage.removeItem('quorum_user');
+  window.location.href = '/';
+});
 
         // State trackers
         const initialShelfLife = {};
@@ -972,6 +1010,9 @@
                     return '#64748b';
             }
         }
+      }
+    }
+  }
 
         // ==================== DISPATCH COMMAND ACTIONS ====================
 
@@ -1001,12 +1042,14 @@
             } catch(e) { console.error('Tight batch injection failed:', e); }
         }
 
-        async function triggerGhost() {
-            try {
-                await fetch('/sim/ghost', { method: 'POST' });
-                await updateDashboard();
-            } catch(e) { console.error('Ghost simulation failed:', e); }
-        }
+// ═══════════════════════════ MAIN UPDATE ═══════════════════════════
+async function updateDashboard() {
+  try {
+    const response = await fetch('/status');
+    if (!response.ok) throw new Error('bad status');
+    const data = await response.json();
+    lastKnownStatus = data;
+    const now = data.now || 0;
 
         async function directDonation() {
             try {
@@ -1032,39 +1075,34 @@
             } catch(e) { console.error('Close shelter failed:', e); }
         }
 
-        async function advanceClock(min = 5.0) {
-            try {
-                await fetch('/sim/advance', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ minutes: min })
-                });
-                await updateDashboard();
-            } catch(e) { console.error('Advance clock failed:', e); }
-        }
+    // Buffer chip
+    const bufMin = data.config ? data.config.buffer_min : (data.safety_buffer_min || 10);
+    document.getElementById('buffer-chip').textContent = `🛡 Buffer: ${bufMin}m`;
 
-        async function resetEngine() {
-            try {
-                await fetch('/sim/reset', { method: 'POST' });
-                Object.keys(riderHeartbeats).forEach(k => delete riderHeartbeats[k]);
-                Object.keys(initialShelfLife).forEach(k => delete initialShelfLife[k]);
-                await updateDashboard();
-            } catch(e) { console.error('Reset failed:', e); }
-        }
+    // Metrics summary
+    const riders = data.riders || {};
+    const ridersList = Object.values(riders);
+    const shelters = data.shelters || {};
+    const sheltersList = Object.values(shelters);
+    const leases = data.leases || {};
+    const leaseList = Object.values(leases);
+    const activeLeases = leaseList.filter(l => l.state === 'RESERVED' || l.state === 'PICKED_UP');
+    document.getElementById('metric-summary').textContent =
+      `${ridersList.length} riders · ${sheltersList.filter(s=>s.open).length}/${sheltersList.length} shelters · ${activeLeases.length} active`;
 
-        async function pickupLease(lid) {
-            try {
-                await fetch(`/leases/${lid}/pickup`, { method: 'POST' });
-                await updateDashboard();
-            } catch(e) { console.error('Pickup failed:', e); }
-        }
+    // Heartbeat transmissions
+    Object.keys(riders).forEach(rid => {
+      if (riderHeartbeats[rid] === undefined) riderHeartbeats[rid] = true;
+      if (riderHeartbeats[rid]) {
+        fetch(`/riders/${rid}/heartbeat`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({})
+        }).catch(() => {});
+      }
+    });
 
-        async function deliverLease(lid) {
-            try {
-                await fetch(`/leases/${lid}/deliver`, { method: 'POST' });
-                await updateDashboard();
-            } catch(e) { console.error('Deliver failed:', e); }
-        }
+    renderFleetRow();
+    liveLayers.clearLayers();
 
         function toggleRiderHeartbeat(rid) {
             riderHeartbeats[rid] = !riderHeartbeats[rid];
@@ -1126,13 +1164,22 @@
 
         // ==================== REAL-TIME TELEMETRY ENGINE ====================
 
-        async function updateDashboard() {
-            try {
-                const response = await fetch('/status');
-                if (!response.ok) return;
-                const data = await response.json();
-                lastKnownStatus = data;
-                const now = data.now || 0;
+    // ---------- MAP: Lease lines ----------
+    leaseList.forEach(l => {
+      const batch = batches[l.batch];
+      const shelter = shelters[l.shelter];
+      if (!batch || !batch.loc || !shelter || !shelter.loc) return;
+      const color = getLeaseColor(l.state);
+      const isDash = l.state === 'RESERVED' || l.state === 'PICKED_UP';
+      const opts = {
+        color, weight: 3, opacity: .8,
+        dashArray: isDash ? '8, 10' : null,
+        className: isDash ? 'dash-line' : ''
+      };
+      const poly = L.polyline([batch.loc, shelter.loc], opts).addTo(liveLayers);
+      poly.bindPopup(`<b>Lease ${l.id}</b><br>Status: <b style="color:${color}">${l.state}</b><br>
+        ${l.rider} → ${l.shelter}<br>Qty: ${l.qty}<br>Deadline: ${Number(l.deadline).toFixed(1)}m`);
+    });
 
                 // Sync Clock
                 document.getElementById('clock-display').innerText = `${Number(now).toFixed(1)}m`;
